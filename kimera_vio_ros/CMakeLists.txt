@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(kimera_vio_ros)
 
+# turn off -Werror=unused-variable
+add_compile_options(-Wno-unused-variable)
+
 find_package(Boost REQUIRED COMPONENTS
   chrono
   date_time

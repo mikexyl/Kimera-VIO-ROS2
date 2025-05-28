@@ -8,8 +8,24 @@ int main(int argc, char * argv[])
 {
   auto g_args = rclcpp::init_and_remove_ros_arguments(argc, argv);
   int g_argc = g_args.size();
-  // Initialize Google's flags library.
-  google::ParseCommandLineFlags(&g_argc, &argv, true);
+
+  // Convert g_args to char* array for gflags
+  std::vector<char*> g_argv;
+  for (auto& arg : g_args) {
+    g_argv.push_back(const_cast<char*>(arg.c_str()));
+  }
+
+  // print the command line arguments
+  for (int i = 0; i < g_argc; ++i) {
+    LOG(INFO) << "Argument " << i << ": " << g_argv[i];
+  }
+
+  // Initialize Google's flags library with the filtered arguments.
+  char** g_argv_ptr = g_argv.data();
+  google::ParseCommandLineFlags(&g_argc, &g_argv_ptr, true);
+
+  LOG(INFO) << "FLAGS_use_lcd: " << FLAGS_use_lcd;
+  CHECK(not FLAGS_use_lcd);
 
   // Initialize Google's logging library.
   google::InitGoogleLogging(argv[0]);

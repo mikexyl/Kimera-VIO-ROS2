@@ -23,7 +23,7 @@ ImuInterface::ImuInterface(
       std::placeholders::_1));
 
   callback_group_imu_ = node->create_callback_group(
-    rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroupType::MutuallyExclusive);
   auto imu_opt = rclcpp::SubscriptionOptions();
   imu_opt.callback_group = callback_group_imu_;
 

@@ -1,4 +1,5 @@
 #include <chrono>
+#include <kimera-vio/pipeline/StereoImuPipeline.h>
 
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
 
@@ -24,7 +25,7 @@ BaseInterface::BaseInterface(
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, node_, false);
 
   callback_group_pipeline_ = node_->create_callback_group(
-    rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroupType::MutuallyExclusive);
 
   base_link_frame_id_ = node_->declare_parameter(
     "frame_id.base_link", "base_link");
@@ -41,7 +42,7 @@ BaseInterface::BaseInterface(
     params_folder_);
 
   vio_pipeline_.reset();
-  vio_pipeline_ = VIO::make_unique<VIO::Pipeline>(*vio_params_);
+  vio_pipeline_ = std::make_unique<VIO::StereoImuPipeline>(*vio_params_);
 }
 
 BaseInterface::~BaseInterface()

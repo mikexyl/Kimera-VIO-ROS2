@@ -2,7 +2,7 @@ repositories:
   borglab/gtsam:
     type: git
     url: https://github.com/borglab/gtsam.git
-    version: develop
+    version: release/4.2
   laurentkneip/opengv:
     type: git
     # url: https://github.com/laurentkneip/opengv.git

@@ -2,19 +2,20 @@
 # General sensor definitions.
 camera_id: left_cam
 
+
 # Sensor extrinsics wrt. the body-frame.
 T_BS:
   cols: 4
   rows: 4
-  data: [1.0, 0.0, 0.0,-0.006,
-         0.0, 1.0, 0.0, 0.005,
-         0.0, 0.0, 1.0, 0.012,
+  data: [0.99998939, -0.00459402,  0.00032586, -0.00107491,
+         0.0045972,   0.99993382, -0.01054608,  0.00339225,
+        -0.00027739,  0.01054747,  0.99994434,  0.02843741,
          0.0, 0.0, 0.0, 1.0]
 
 # Camera specific definitions.
 rate_hz: 30
-resolution: [640,480] # width, height
+resolution: [640, 480]
 camera_model: pinhole
-intrinsics: [385.09918212890625,385.09918212890625,319.0403137207031,243.58929443359375] # fu, fv, cu, cv
-distortion_model: radtan
-distortion_coefficients: [0.0, 0.0, 0.0, 0.0] # k1, k2, p1, p2
+intrinsics: [384.5697007030446, 385.6469026594307, 324.92457920979194, 239.78003927789618] #fu, fv, cu, cv
+distortion_model: equidistant
+distortion_coefficients: [0.34610989806637954, 0.11497394690333039, 0.09283198659020588, 0.011326272488628174]

@@ -22,7 +22,7 @@ private:
   void imu_cb(const Imu::SharedPtr imu_msg);
 
 private:
-  rclcpp::callback_group::CallbackGroup::SharedPtr callback_group_imu_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_imu_;
   rclcpp::Subscription<Imu>::SharedPtr imu_sub_;
   rclcpp::Time last_imu_timestamp_;
 };

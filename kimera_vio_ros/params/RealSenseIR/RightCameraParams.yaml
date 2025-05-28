@@ -6,15 +6,15 @@ camera_id: right_cam
 T_BS:
   cols: 4
   rows: 4
-  data: [1.0, 0.0, 0.0, 0.045,
-         0.0, 1.0, 0.0, 0.005,
-         0.0, 0.0, 1.0, 0.012,
+  data: [0.99998642, -0.00456824, -0.00250874,  0.04882315,
+         0.00454183,  0.99993527, -0.01043246,  0.00363688,
+         0.00255624,  0.01042092,  0.99994243,  0.02863922,
          0.0, 0.0, 0.0, 1.0]
 
 # Camera specific definitions.
 rate_hz: 30
-resolution: [640,480] # width, height
+resolution: [640, 480]
 camera_model: pinhole
-intrinsics: [385.09918212890625,385.09918212890625,319.0403137207031,243.58929443359375] # fu, fv, cu, cv
-distortion_model: radtan
-distortion_coefficients: [0.0, 0.0, 0.0, 0.0] # k1, k2, p1, p2
+intrinsics: [384.6517877875679, 385.80743823947375, 323.0940939324028, 239.4007620255053] #fu, fv, cu, cv
+distortion_model: equidistant
+distortion_coefficients: [0.33272557213785425, 0.20855196388908398, -0.14436817873485477, 0.2040126459333023]

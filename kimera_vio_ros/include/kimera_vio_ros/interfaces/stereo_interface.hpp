@@ -28,7 +28,7 @@ private:
     const Image::SharedPtr right_msg);
 
 private:
-  rclcpp::callback_group::CallbackGroup::SharedPtr callback_group_stereo_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_stereo_;
 
   typedef message_filters::sync_policies::ExactTime<Image, Image> ExactImagePolicy;
   typedef message_filters::Synchronizer<ExactImagePolicy> ExactImageSync;

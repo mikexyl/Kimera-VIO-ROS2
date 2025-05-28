@@ -1,4 +1,5 @@
 #include "kimera_vio_ros/interfaces/stereo_interface.hpp"
+#include <kimera-vio/pipeline/StereoImuPipeline.h>
 
 namespace kimera_vio_ros
 {
@@ -14,18 +15,18 @@ StereoInterface::StereoInterface(
 {
   this->registerLeftFrameCallback(
     std::bind(
-      &VIO::Pipeline::fillLeftFrameQueue,
+      &VIO::StereoImuPipeline::fillLeftFrameQueue,
       vio_pipeline_.get(),
       std::placeholders::_1));
 
   this->registerRightFrameCallback(
     std::bind(
-      &VIO::Pipeline::fillRightFrameQueue,
+      &VIO::StereoImuPipeline::fillRightFrameQueue,
       vio_pipeline_.get(),
       std::placeholders::_1));
 
   callback_group_stereo_ = node->create_callback_group(
-    rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroupType::MutuallyExclusive);
   auto stereo_opt = rclcpp::SubscriptionOptions();
   stereo_opt.callback_group = callback_group_stereo_;
 
@@ -143,9 +144,9 @@ void StereoInterface::stereo_image_cb(
     //  TODO: Use RCLCPP_INFO inplace of CHECK?
     // RCLCPP_INFO(this->get_logger(), "Did you forget to register the right frame callback?");
 
-    left_frame_callback_(VIO::make_unique<VIO::Frame>(
+    left_frame_callback_(std::make_unique<VIO::Frame>(
         frame_count_, timestamp_left, left_cam_info, readRosImage(left_msg)));
-    right_frame_callback_(VIO::make_unique<VIO::Frame>(
+    right_frame_callback_(std::make_unique<VIO::Frame>(
         frame_count_, timestamp_right, right_cam_info, readRosImage(right_msg)));
     // LOG_EVERY_N(INFO, 30) << "Done: KimeraVioNode::stereo_image_cb";
     frame_count_++;

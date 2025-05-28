@@ -3,31 +3,28 @@
 
 #include <future>
 
-#include "glog/logging.h"
-#include "kimera-vio/dataprovider/DataProviderInterface.h"
-#include "kimera-vio/pipeline/Pipeline.h"
-#include "rclcpp/rclcpp.hpp"
-#include "tf2_ros/buffer.h"
-#include "tf2_ros/transform_broadcaster.h"
-#include "tf2_ros/transform_listener.h"
+#include <glog/logging.h>
+#include <kimera-vio/dataprovider/DataProviderInterface.h>
+#include <kimera-vio/pipeline/Pipeline.h>
+#include <kimera-vio/pipeline/StereoImuPipeline.h>
+#include <rclcpp/rclcpp.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 
-namespace kimera_vio_ros
-{
-namespace interfaces
-{
+namespace kimera_vio_ros {
+namespace interfaces {
 
-class BaseInterface : public VIO::DataProviderInterface
-{
+class BaseInterface : public VIO::DataProviderInterface {
 public:
-  BaseInterface(
-    rclcpp::Node::SharedPtr & node);
+  BaseInterface(rclcpp::Node::SharedPtr &node);
   virtual ~BaseInterface();
   void start();
 
 protected:
   rclcpp::Node::SharedPtr node_;
   VIO::VioParams::Ptr vio_params_;
-  VIO::Pipeline::UniquePtr vio_pipeline_;
+  VIO::StereoImuPipeline::UniquePtr vio_pipeline_;
 
   std::string base_link_frame_id_;
   std::string map_frame_id_;
@@ -38,12 +35,12 @@ protected:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
 private:
-  rclcpp::callback_group::CallbackGroup::SharedPtr callback_group_pipeline_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_pipeline_;
   rclcpp::TimerBase::SharedPtr pipeline_timer_;
   std::future<bool> handle_pipeline_;
 };
 
-}  // namespace interfaces
-}  // namespace kimera_vio_ros
+} // namespace interfaces
+} // namespace kimera_vio_ros
 
-#endif  // KIMERA_ROS__INTERFACES__BASE_INTERFACE_HPP_
+#endif // KIMERA_ROS__INTERFACES__BASE_INTERFACE_HPP_

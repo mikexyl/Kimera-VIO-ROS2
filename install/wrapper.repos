@@ -20,7 +20,7 @@ repositories:
   image_common:
     type: git
     url: https://github.com/ros-perception/image_common.git
-    version: ros2
+    version: humble
   pcl_msgs:
     type: git
     url: https://github.com/ros-perception/pcl_msgs.git
@@ -28,8 +28,8 @@ repositories:
   perception_pcl:
     type: git
     url: https://github.com/ros-perception/perception_pcl.git
-    version: eloquent-devel
+    version: humble
   vision_opencv:
     type: git
     url: https://github.com/ros-perception/vision_opencv.git
-    version: ros2
+    version: humble

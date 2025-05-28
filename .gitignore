@@ -53,3 +53,6 @@ CMakeLists.txt.user
 
 # Visual Studio Code
 .vscode
+
+compile_commands.json
+.cache
