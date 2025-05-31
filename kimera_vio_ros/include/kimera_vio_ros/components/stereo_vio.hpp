@@ -22,7 +22,7 @@ public:
 private:
   void init();
 
-  std::unique_ptr<interfaces::BaseInterface> vio_node_;
+  std::unique_ptr<interfaces::StereoVioInterface> vio_node_;
 };
 
 }  // namespace components

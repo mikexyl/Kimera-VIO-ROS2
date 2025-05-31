@@ -36,7 +36,7 @@ def generate_launch_description():
     use_camera_info_arg = DeclareLaunchArgument('use_camera_info', default_value='true')
     topic_left_info_arg = DeclareLaunchArgument('topic.left.info', default_value='/cam0/camera_info')
     topic_right_info_arg = DeclareLaunchArgument('topic.right.info', default_value='/cam1/camera_info')
-    frame_id_base_link_arg = DeclareLaunchArgument('frame_id.base_link', default_value='base_link')
+    frame_id_base_link_arg = DeclareLaunchArgument('frame_id.base_link', default_value='camera_link')
     frame_id_map_arg = DeclareLaunchArgument('frame_id.map', default_value='map')
     frame_id_world_arg = DeclareLaunchArgument('frame_id.world', default_value='world')
     verbosity_arg = DeclareLaunchArgument('verbosity', default_value='0')
@@ -49,6 +49,7 @@ def generate_launch_description():
         name='kimera_vio_ros',
         namespace='kimera_vio_ros',
         output='screen',
+        # prefix='kitty -e gdb -ex run --args',
         arguments=[
             ['--use_lcd=', LaunchConfiguration('use_lcd')],
             '--vocabulary_path', LaunchConfiguration('path_to_vocab'),

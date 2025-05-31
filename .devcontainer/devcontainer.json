@@ -13,7 +13,7 @@
 	},
 
 	"workspaceMount": "source=${localWorkspaceFolder}/../,target=/workspaces/src/,type=bind",
-	"workspaceFolder": "/workspaces/src/aria_net",
+	"workspaceFolder": "/workspaces/src/",
 
 	"features": {
 		"ghcr.io/devcontainers/features/python:1": {},
@@ -54,5 +54,12 @@
 	// "customizations": {},
 
 	"remoteUser": "${localEnv:USER}",
-	"postCreateCommand": "sudo cp /root/.zshrc ${HOME} && sudo cp -r /root/.oh-my-zsh ${HOME} && sudo chown -R ${localEnv:USER} ${HOME}/.zshrc ${HOME}/.oh-my-zsh"
+	"postCreateCommand": "sudo cp /root/.zshrc ${HOME} && sudo cp -r /root/.oh-my-zsh ${HOME} && sudo chown -R ${localEnv:USER} ${HOME}/.zshrc ${HOME}/.oh-my-zsh",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"llvm-vs-code-extensions.vscode-clangd"
+			]
+		}
+	}
 }

@@ -52,13 +52,6 @@ set(dependencies
 
 set(library_name ${PROJECT_NAME})
 add_library(${library_name} SHARED
-  src/components/stereo_vio.cpp
-  src/interfaces/backend_interface.cpp
-  src/interfaces/base_interface.cpp
-  src/interfaces/image_interface.cpp
-  src/interfaces/imu_interface.cpp
-  src/interfaces/stereo_interface.cpp
-  src/interfaces/stereo_vio_interface.cpp
   src/utils/geometry.cpp
 )
 ament_target_dependencies(${library_name}

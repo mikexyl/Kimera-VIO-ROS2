@@ -17,6 +17,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
       ros-$ROS_DISTRO-perception \
       ros-$ROS_DISTRO-rviz2 \
       ros-$ROS_DISTRO-realsense2-camera \
+      ros-$ROS_DISTRO-rqt-graph \
       libmetis-dev libgflags-dev libgoogle-glog-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
