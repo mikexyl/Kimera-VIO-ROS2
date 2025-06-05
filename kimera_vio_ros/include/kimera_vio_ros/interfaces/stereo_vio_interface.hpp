@@ -24,6 +24,7 @@ using namespace std::chrono_literals;
 #include <sensor_msgs/msg/imu.hpp>
 
 #include "kimera_vio_ros/interfaces/ros2_data_provider.hpp"
+#include "kimera_vio_ros/interfaces/ros2_visualizer.hpp"
 #include "kimera_vio_ros/utils/geometry.hpp"
 
 using Image = sensor_msgs::msg::Image;
@@ -159,7 +160,10 @@ class StereoVioInterface {
     vio_params_->camera_params_.at(1).print();
 
     if (not vio_pipeline_) {
-      vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(*vio_params_);
+      auto visualizer = std::make_unique<Ros2Visualizer>(
+          node_, base_link_frame_id_, map_frame_id_, world_frame_id_);
+      vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(
+          *vio_params_, std::move(visualizer));
     }
 
     if (not data_provider_interface_) {

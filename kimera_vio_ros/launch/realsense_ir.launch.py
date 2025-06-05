@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDesc
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
+from launch_ros.actions import Node, SetParameter
 import os
 
 
@@ -30,19 +31,19 @@ def generate_launch_description():
             'topic.right.info': '/camera/camera/infra2/camera_info',
             'topic.imu.data': '/camera/camera/imu',
             'use_camera_info': 'true',
-            # 'verbosity': '100',
+            'verbosity': '0',
         }.items()
     )
 
     # Include the RealSense2 camera launch file with IR cameras enabled
-    realsense_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                os.path.dirname(__file__),
-                'realsense_only.launch.py'
-            )
-        )
-    )
+    # realsense_launch = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         os.path.join(
+    #             os.path.dirname(__file__),
+    #             'realsense_only.launch.py'
+    #         )
+    #     )
+    # )
 
     # # Static transform publisher node
     # static_tf_node = Node(
@@ -61,10 +62,11 @@ def generate_launch_description():
         use_lcd_arg,
         log_output_arg,
         kimera_vio_ros_launch,
-        realsense_launch
+        # realsense_launch
     ])
 
     return LaunchDescription([
+
         group,
         # static_tf_node
     ])

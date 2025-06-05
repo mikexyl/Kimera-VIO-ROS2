@@ -20,6 +20,12 @@
 		},
 		{
 			"path": "../../accelerated_features"
+		},
+		{
+			"path": "../../cpp_network_example"
+		},
+		{
+			"path": "../../XFeat-Image-Matching-ONNX-Sample"
 		}
 	],
 	"settings": {}

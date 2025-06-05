@@ -15,6 +15,7 @@
 #include <future>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
@@ -22,7 +23,8 @@
 #include <sensor_msgs/msg/imu.hpp>
 
 #include "kimera_vio_ros/utils/geometry.hpp"
-
+namespace kimera_vio_ros {
+namespace interfaces {
 using Image = sensor_msgs::msg::Image;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
 using Imu = sensor_msgs::msg::Imu;
@@ -54,6 +56,16 @@ class Ros2Visualizer : public VIO::Visualizer3D {
 
   void publishState(const VIO::BackendOutput::ConstPtr& output) const {
     CHECK(output);
+    RCLCPP_INFO(node_->get_logger(),
+                "Publishing state at timestamp %lu",
+                output->timestamp_);
+    // print pose for debugging
+    RCLCPP_INFO(node_->get_logger(),
+                "Pos: [%.3f, %.3f, %.3f]",
+                output->W_State_Blkf_.pose_.x(),
+                output->W_State_Blkf_.pose_.y(),
+                output->W_State_Blkf_.pose_.z());
+
     // Get latest estimates for odometry.
     const VIO::Timestamp& ts = output->timestamp_;
     const gtsam::Pose3& pose = output->W_State_Blkf_.pose_;
@@ -135,3 +147,5 @@ class Ros2Visualizer : public VIO::Visualizer3D {
 
   rclcpp::Publisher<Odometry>::SharedPtr odometry_pub_;
 };
+}  // namespace interfaces
+}  // namespace kimera_vio_ros

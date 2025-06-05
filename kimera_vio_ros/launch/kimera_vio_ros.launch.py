@@ -63,7 +63,8 @@ def generate_launch_description():
             '--v', LaunchConfiguration('verbosity'),
             '--log_output', LaunchConfiguration('log_output'),
             '--output_path', LaunchConfiguration('log_output_path'),
-            '--visualize', LaunchConfiguration('visualize')
+            '--visualize', LaunchConfiguration('visualize'),
+            '--viz_type', '2',
         ],
         parameters=[
             {'params_folder': LaunchConfiguration('params_folder')},
