@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(kimera_vio_ros)
 
+# set C++ standard to 20
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # turn off -Werror=unused-variable
 add_compile_options(-Wno-unused-variable)
 
@@ -23,12 +27,12 @@ find_package(kimera_common REQUIRED)
 find_package(kimera_vio REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(pcl_conversions REQUIRED)
-find_package(pcl_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(aria_viz REQUIRED)
+find_package(aria_common REQUIRED)
+find_package(jsoncpp REQUIRED)
 
 kimera_package()
 
@@ -39,34 +43,23 @@ include_directories(
 set(dependencies
   cv_bridge
   geometry_msgs
-  kimera_vio
   message_filters
   nav_msgs
-  pcl_conversions
-  pcl_msgs
   rclcpp
-  rclcpp_components
   sensor_msgs
   tf2_ros
 )
 
-set(library_name ${PROJECT_NAME})
-add_library(${library_name} SHARED
-  src/utils/geometry.cpp
-)
-ament_target_dependencies(${library_name}
-  ${dependencies})
-rclcpp_components_register_nodes(${library_name}
-  "kimera_vio_ros::components::StereoVio")
-target_link_libraries(${library_name}
-  kimera_vio)
-
 add_executable(stereo_vio_node
-  src/stereo_vio_node.cpp)
+  src/stereo_vio_node.cpp
+  src/utils/geometry.cpp)
 ament_target_dependencies(stereo_vio_node
   ${dependencies})
-target_link_libraries(stereo_vio_node
-  ${library_name})
+target_link_libraries(stereo_vio_node 
+  kimera_vio
+  aria_viz
+  aria_common
+)
 
 set(executable_names
   stereo_vio_node
@@ -95,5 +88,9 @@ endif()
 
 ament_export_dependencies(dependencies)
 ament_export_include_directories(include)
+
+# Print out fmt's include and library paths for debugging
+message(STATUS "fmt_INCLUDE_DIRS: ${fmt_INCLUDE_DIRS}")
+message(STATUS "fmt_LIBRARIES: ${fmt_LIBRARIES}")
 
 ament_package()

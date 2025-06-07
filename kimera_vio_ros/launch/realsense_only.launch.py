@@ -22,7 +22,6 @@ def generate_launch_description():
             'enable_gyro': 'true',
             'enable_accel': 'true',
             'enable_sync': 'true',
-            'pointcloud.enable': 'false',
             'unite_imu_method': '2',
         }.items()
     )

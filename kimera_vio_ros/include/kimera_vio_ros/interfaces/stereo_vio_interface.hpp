@@ -23,6 +23,7 @@ using namespace std::chrono_literals;
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 
+#include "kimera_vio_ros/interfaces/rerun_visualizer.hpp"
 #include "kimera_vio_ros/interfaces/ros2_data_provider.hpp"
 #include "kimera_vio_ros/interfaces/ros2_visualizer.hpp"
 #include "kimera_vio_ros/utils/geometry.hpp"
@@ -40,7 +41,6 @@ class StereoVioInterface {
   StereoVioInterface(rclcpp::Node::SharedPtr& node) : node_(node) {
     std::string params_folder_;
     params_folder_ = node_->declare_parameter("params_folder", "");
-    CHECK(!params_folder_.empty());
     vio_params_ = std::make_shared<VIO::VioParams>(params_folder_);
 
     callback_group_pipeline_ = node_->create_callback_group(
@@ -83,14 +83,12 @@ class StereoVioInterface {
       if (handle_pipeline_.joinable()) {
         handle_pipeline_.join();
       }
-      LOG(INFO) << "Destroying Stereo VIO Interface...";
     }
     if (data_provider_interface_) {
       data_provider_interface_->shutdown();
       if (handle_data_provider_.joinable()) {
         handle_data_provider_.join();
       }
-      LOG(INFO) << "Destroying Ros2DataProviderInterface...";
     }
   }
 
@@ -124,7 +122,6 @@ class StereoVioInterface {
   std::string world_frame_id_;
 
   void start() {
-    LOG(INFO) << "Starting Stereo VIO Interface...";
     if (vio_params_->parallel_run_) {
       handle_pipeline_ = std::thread(&VIO::Pipeline::spin, vio_pipeline_.get());
     } else {
@@ -139,12 +136,6 @@ class StereoVioInterface {
                       const CameraInfo::ConstSharedPtr& right_msg,
                       const Image::ConstSharedPtr& left_image_msg,
                       const Image::ConstSharedPtr& right_image_msg) {
-    CHECK_GE(vio_params_->camera_params_.size(), 2u);
-
-    // print out the frame id for debugging
-    LOG(INFO) << "Received camera info for left: " << left_msg->header.frame_id
-              << " and right: " << right_msg->header.frame_id;
-
     // Initialize CameraParams for pipeline.
     if (not msgCamInfoToCameraParams(left_msg,
                                      left_image_msg->header.frame_id,
@@ -152,7 +143,6 @@ class StereoVioInterface {
         not msgCamInfoToCameraParams(right_msg,
                                      right_image_msg->header.frame_id,
                                      &vio_params_->camera_params_.at(1))) {
-      LOG(WARNING) << "Failed to convert CameraInfo messages to CameraParams.";
       return;
     }
 
@@ -160,8 +150,11 @@ class StereoVioInterface {
     vio_params_->camera_params_.at(1).print();
 
     if (not vio_pipeline_) {
-      auto visualizer = std::make_unique<Ros2Visualizer>(
-          node_, base_link_frame_id_, map_frame_id_, world_frame_id_);
+      // auto visualizer = std::make_unique<Ros2Visualizer>(
+      // node_, base_link_frame_id_, map_frame_id_, world_frame_id_);
+      auto visualizer = std::make_unique<RerunVisualizer>(
+          base_link_frame_id_, map_frame_id_, world_frame_id_);
+
       vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(
           *vio_params_, std::move(visualizer));
     }
@@ -189,29 +182,22 @@ class StereoVioInterface {
   bool msgCamInfoToCameraParams(const CameraInfo::ConstSharedPtr& cam_info,
                                 std::string frame_id,
                                 VIO::CameraParams* cam_params) {
-    CHECK_NOTNULL(cam_params);
-
     // Get intrinsics from incoming CameraInfo messages:
     cam_params->camera_id_ = frame_id;
-    CHECK(!cam_params->camera_id_.empty());
-
-    CHECK(cam_info->distortion_model == "plumb_bob" ||
-          cam_info->distortion_model == "equidistant");
 
     if (cam_info->distortion_model == "plumb_bob") {
       // Kimera-VIO terms the plumb bob dist. model the as radtan.
       cam_params->distortion_model_ = VIO::DistortionModel::RADTAN;
       // Kimera-VIO can't take a 6th order radial distortion term.
-      CHECK_EQ(cam_info->d.size(), 5);
     } else {
-      LOG(FATAL) << "Other distortion models not supported yet: "
-                 << cam_info->distortion_model;
+      throw std::runtime_error(
+          "Unsupported distortion model: " + cam_info->distortion_model +
+          ". Only 'plumb_bob' is supported.");
     }
 
     const std::vector<double>& distortion_coeffs =
         std::vector<double>(cam_info->d.begin(), cam_info->d.end());
 
-    CHECK_GE(distortion_coeffs.size(), 4);
     VIO::CameraParams::convertDistortionVectorToMatrix(
         distortion_coeffs, &cam_params->distortion_coeff_mat_);
 
@@ -236,15 +222,11 @@ class StereoVioInterface {
     if (not tf_buffer_->canTransform(base_link_frame_id_,
                                      cam_params->camera_id_,
                                      cam_info->header.stamp)) {
-      LOG(WARNING) << "TF for camera frame " << cam_params->camera_id_
-                   << " not found. Will not set body_Pose_cam_";
       return false;
     }
 
     try {
       // print base link and caemra id for debugg
-      LOG(INFO) << "Looking up TF for camera: " << cam_params->camera_id_
-                << " with base link: " << base_link_frame_id_;
       cam_tf = tf_buffer_->lookupTransform(
           base_link_frame_id_, cam_params->camera_id_, cam_info->header.stamp);
     } catch (tf2::TransformException& ex) {

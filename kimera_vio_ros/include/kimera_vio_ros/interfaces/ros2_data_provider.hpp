@@ -112,9 +112,6 @@ class Ros2DataProviderInterface : public VIO::DataProviderInterface {
 
     exact_image_sync_->registerCallback(
         &Ros2DataProviderInterface::stereo_image_cb, this);
-
-    LOG(INFO) << "Subscribing to stereo image topics: " << left_image_topic
-              << " and " << right_image_topic;
   }
 
   VIO::FrameId frame_count_{0};
@@ -149,9 +146,6 @@ class Ros2DataProviderInterface : public VIO::DataProviderInterface {
       const VIO::Timestamp& timestamp_left = left_stamp.nanoseconds();
       const VIO::Timestamp& timestamp_right = right_stamp.nanoseconds();
 
-      CHECK(left_frame_callback_);
-      CHECK(right_frame_callback_);
-
       left_frame_callback_(std::make_unique<VIO::Frame>(
           frame_count_, timestamp_left, left_cam_info, readRosImage(left_msg)));
       right_frame_callback_(
@@ -172,16 +166,18 @@ class Ros2DataProviderInterface : public VIO::DataProviderInterface {
     try {
       cv_constptr = cv_bridge::toCvShare(img_msg);
     } catch (cv_bridge::Exception& exception) {
-      // RCLCPP_FATAL(this->get_logger(), "cv_bridge exception: %s",
-      // exception.what()); rclcpp::shutdown();
+      RCLCPP_FATAL(
+          node_->get_logger(), "cv_bridge exception: %s", exception.what());
+      rclcpp::shutdown();
     }
+
+    CHECK(cv_constptr != nullptr);
 
     if (img_msg->encoding == sensor_msgs::image_encodings::BGR8) {
       // LOG(WARNING) << "Converting image...";
       cv::cvtColor(cv_constptr->image, cv_constptr->image, cv::COLOR_BGR2GRAY);
     } else {
-      // CHECK_EQ(cv_constptr->encoding, sensor_msgs::image_encodings::MONO8)
-      //     << "Expected image with MONO8 or BGR8 encoding.";
+      CHECK_EQ(cv_constptr->encoding, sensor_msgs::image_encodings::MONO8);
     }
 
     return cv_constptr->image;
