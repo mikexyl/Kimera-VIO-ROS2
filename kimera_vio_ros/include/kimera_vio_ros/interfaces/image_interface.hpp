@@ -1,7 +1,7 @@
 #ifndef KIMERA_ROS__INTERFACES__IMAGE_INTERFACE_HPP_
 #define KIMERA_ROS__INTERFACES__IMAGE_INTERFACE_HPP_
 
-#include "cv_bridge/cv_bridge.h"
+#include "cv_bridge/cv_bridge.hpp"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"

@@ -53,3 +53,17 @@ CMakeLists.txt.user
 
 # Visual Studio Code
 .vscode
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+.cache
+compile_commands.json
+
+aria
+dorian3d
+kimera_common
+kimera_graph_msgs
+kimera_graph_visualizer
+laurentkneip
+MIT-SPARK

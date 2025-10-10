@@ -1,0 +1,28 @@
+[workspace]
+authors = ["Mike Xiangyu Liu <liu.xiangyu@ucy.ac.cy>"]
+channels = ["conda-forge"]
+name = "src"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[activation]
+scripts = ["/opt/ros/jazzy/setup.bash", "/workspaces/install/setup.bash"]
+
+[tasks]
+play-euroc-m1 = "cd /datasets_extra/euroc && ros2 bag play MH_01_easy --start-offset 30"
+
+[tasks.build]
+cwd = "/workspaces"
+cmd = "colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -GNinja -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF -DGTSAM_WITH_TBB=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_USE_SYSTEM_METIS=ON -DKIMERA_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+
+[tasks.kimera]
+cmd = "ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml verbosity:=0"
+
+[tasks.build-rerun]
+cwd = "/tmp"
+cmd = "wget -c https://github.com/rerun-io/rerun/releases/download/0.25.1/rerun_cpp_sdk.zip && unzip rerun_cpp_sdk.zip && cd rerun_cpp_sdk && mkdir build && cd build && cmake -GNinja -DCMAKE_POSITION_INDEPENDENT_CODE=ON .. && sudo ninja install"
+
+[dependencies]
+ninja = ">=1.13.1,<2"
+zip = ">=3.0,<4"
+unzip = ">=6.0,<7"

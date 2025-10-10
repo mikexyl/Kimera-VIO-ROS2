@@ -27,7 +27,7 @@ public:
 protected:
   rclcpp::Node::SharedPtr node_;
   VIO::VioParams::Ptr vio_params_;
-  VIO::Pipeline::UniquePtr vio_pipeline_;
+  VIO::Pipeline::Ptr vio_pipeline_;
 
   std::string base_link_frame_id_;
   std::string map_frame_id_;
@@ -38,7 +38,7 @@ protected:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
 private:
-  rclcpp::callback_group::CallbackGroup::SharedPtr callback_group_pipeline_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_pipeline_;
   rclcpp::TimerBase::SharedPtr pipeline_timer_;
   std::future<bool> handle_pipeline_;
 };

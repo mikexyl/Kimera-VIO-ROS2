@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.5)
 project(kimera_vio_ros)
 
+# turn off -Werror=unused-variable
+add_compile_options(-Wno-error=unused-variable -Wno-error=unused-parameter -Wno-error=unused-but-set-variable)
+
+# set c++20
+set(CMAKE_CXX_STANDARD 20)
+
 find_package(Boost REQUIRED COMPONENTS
   chrono
   date_time
@@ -26,6 +32,8 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(aria_viz REQUIRED)
+find_package(aria_common REQUIRED)
 
 kimera_package()
 
@@ -56,6 +64,7 @@ add_library(${library_name} SHARED
   src/interfaces/imu_interface.cpp
   src/interfaces/stereo_interface.cpp
   src/interfaces/stereo_vio_interface.cpp
+  src/interfaces/RerunVisualizer.cpp
   src/utils/geometry.cpp
 )
 ament_target_dependencies(${library_name}
@@ -63,7 +72,7 @@ ament_target_dependencies(${library_name}
 rclcpp_components_register_nodes(${library_name}
   "kimera_vio_ros::components::StereoVio")
 target_link_libraries(${library_name}
-  kimera_vio)
+  kimera_vio aria_common aria_viz)
 
 add_executable(stereo_vio_node
   src/stereo_vio_node.cpp)

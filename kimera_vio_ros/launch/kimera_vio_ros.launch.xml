@@ -1,6 +1,6 @@
 <launch>
-  <arg name="dataset_name" default="EuRoC"/>
-  <arg name="parallel" default="flase" />
+  <arg name="dataset_name" default="Euroc"/>
+  <arg name="parallel" default="false" />
   <arg name="use_sim_time" default="true"/>
 
   <!-- If true, SparkVio will log output of all modules to the
@@ -13,11 +13,7 @@
   <!-- If true, SparkVio will enable the LoopClosureDetector module. -->
   <arg name="use_lcd" default="false"/>
 
-  <!-- Parameters -->
-  <!-- each dataset has its own set of parameter files -->
-  <!-- the parameters are set in param folder, ordered by the dataset's name -->
-  <arg name="params_folder"
-  default="$(find-pkg-share kimera_vio_ros)/param/$(var dataset_name)"/>
+  <arg name="params_folder" default="$(find-pkg-share kimera_vio_ros)/param/$(var dataset_name)"/>
 
   <!-- Specify the absolute path to the vocabulary file. -->
   <!-- This is usually in the VIO directory (VIO/vocabulary/ORBvoc.yml). -->
@@ -29,7 +25,7 @@
   <arg name="topic.right.image"   default="/cam1/image_raw"/>
   <arg name="topic.imu.data"      default="/imu0"/>
 
-  <arg name="use_camera_info"     default="true"/>
+  <arg name="use_camera_info"     default="false"/>
   <arg name="topic.left.info"     default="/cam0/camera_info"/>
   <arg name="topic.right.info"    default="/cam1/camera_info"/>
 
@@ -42,17 +38,17 @@
   <arg name="verbosity"    default="0" />
   <!-- Visualize pipeline output in OpenCV. -->
   <!-- Note that this is duplicated from the flags file -->
-  <arg name="visualize"    default="false" />
+  <arg name="visualize"    default="true" />
   <!-- <arg name="rectified"    default="true" /> -->
 
   <!-- Launch main node  -->
   <node name="kimera_vio_ros" pkg="kimera_vio_ros" exec="stereo_vio_node"
-    output="screen" ns="kimera_vio_ros"
+    output="screen" namespace="kimera_vio_ros"
     args="--use_lcd=$(var use_lcd) \
         --vocabulary_path=$(var path_to_vocab) \
         --flagfile=$(var params_folder)/flags/Mesher.flags \
-        --flagfile=$(var params_folder)/flags/VioBackEnd.flags \
-        --flagfile=$(var params_folder)/flags/RegularVioBackEnd.flags \
+        --flagfile=$(var params_folder)/flags/VioBackend.flags \
+        --flagfile=$(var params_folder)/flags/RegularVioBackend.flags \
         --flagfile=$(var params_folder)/flags/Visualizer3D.flags \
         --logtostderr 1 \
         --colorlogtostderr 1 \

@@ -1,4 +1,4 @@
-ARG FROM_IMAGE=ros:eloquent
+ARG FROM_IMAGE=ros:jazzy
 
 # multi-stage for caching
 FROM $FROM_IMAGE AS cache
@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y \
       libjpeg-dev \
       libpng-dev \
       libtiff-dev \
-      libvtk6-dev \
+      libvtk9-dev \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 

@@ -11,13 +11,6 @@ BackendInterface::BackendInterface(
 : BaseInterface(node),
   backend_output_queue_("Backend output")
 {
-  vio_pipeline_->registerBackendOutputCallback(
-    std::bind(
-      // &BackendInterface::callbackBackendOutput,
-      &BackendInterface::publishBackendOutput,
-      this,
-      std::placeholders::_1));
-
   rclcpp::QoS qos(rclcpp::KeepLast(10));
   odometry_pub_ = node_->create_publisher<Odometry>("odometry", qos);
   pointcloud_pub_ = node_->create_publisher<PointCloud2>("time_horizon_pointcloud", qos);
@@ -182,7 +175,7 @@ void BackendInterface::publishTimeHorizonPointCloud(
 
   // Populate cloud structure with 3D points.
   size_t i = 0;
-  for (const std::pair<VIO::LandmarkId, gtsam::Point3> & id_point : points_with_id) {
+  for (const std::pair<VIO::LandmarkId, gtsam::Point3>  id_point : points_with_id) {
     const gtsam::Point3 point_3d = id_point.second;
     *iter_x = static_cast<float>(point_3d.x());
     *iter_y = static_cast<float>(point_3d.y());
