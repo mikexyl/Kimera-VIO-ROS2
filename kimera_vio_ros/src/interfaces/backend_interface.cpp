@@ -1,29 +1,21 @@
 #include "kimera_vio_ros/interfaces/backend_interface.hpp"
 #include "kimera_vio_ros/utils/geometry.hpp"
 
-namespace kimera_vio_ros
-{
-namespace interfaces
-{
+namespace kimera_vio_ros {
+namespace interfaces {
 
-BackendInterface::BackendInterface(
-  rclcpp::Node::SharedPtr & node)
-: BaseInterface(node),
-  backend_output_queue_("Backend output")
-{
+BackendInterface::BackendInterface(rclcpp::Node::SharedPtr &node)
+    : BaseInterface(node), backend_output_queue_("Backend output") {
   rclcpp::QoS qos(rclcpp::KeepLast(10));
   odometry_pub_ = node_->create_publisher<Odometry>("odometry", qos);
-  pointcloud_pub_ = node_->create_publisher<PointCloud2>("time_horizon_pointcloud", qos);
+  pointcloud_pub_ =
+      node_->create_publisher<PointCloud2>("time_horizon_pointcloud", qos);
 }
 
-BackendInterface::~BackendInterface()
-{
-  backend_output_queue_.shutdown();
-}
+BackendInterface::~BackendInterface() { backend_output_queue_.shutdown(); }
 
 void BackendInterface::publishBackendOutput(
-  const VIO::BackendOutput::Ptr & output)
-{
+    const VIO::BackendOutput::Ptr &output) {
   CHECK(output);
   publishTf(output);
   if (odometry_pub_->get_subscription_count() > 0) {
@@ -37,21 +29,19 @@ void BackendInterface::publishBackendOutput(
   }
 }
 
-
 void BackendInterface::publishState(
-  const VIO::BackendOutput::Ptr & output) const
-{
+    const VIO::BackendOutput::Ptr &output) const {
   CHECK(output);
   // Get latest estimates for odometry.
-  const VIO::Timestamp & ts = output->timestamp_;
-  const gtsam::Pose3 & pose = output->W_State_Blkf_.pose_;
-  const gtsam::Rot3 & rotation = pose.rotation();
-  const gtsam::Quaternion & quaternion = rotation.toQuaternion();
-  const gtsam::Vector3 & velocity = output->W_State_Blkf_.velocity_;
-  const gtsam::Matrix6 & pose_cov =
-    gtsam::sub(output->state_covariance_lkf_, 0, 6, 0, 6);
-  const gtsam::Matrix3 & vel_cov =
-    gtsam::sub(output->state_covariance_lkf_, 6, 9, 6, 9);
+  const VIO::Timestamp &ts = output->timestamp_;
+  const gtsam::Pose3 &pose = output->W_State_Blkf_.pose_;
+  const gtsam::Rot3 &rotation = pose.rotation();
+  const gtsam::Quaternion &quaternion = rotation.toQuaternion();
+  const gtsam::Vector3 &velocity = output->W_State_Blkf_.velocity_;
+  const gtsam::Matrix6 &pose_cov =
+      gtsam::sub(output->state_covariance_lkf_, 0, 6, 0, 6);
+  const gtsam::Matrix3 &vel_cov =
+      gtsam::sub(output->state_covariance_lkf_, 6, 9, 6, 9);
 
   // First publish odometry estimate
   Odometry odometry_msg;
@@ -79,17 +69,17 @@ void BackendInterface::publishState(
   // Position covariance first, angular covariance after
   DCHECK_EQ(pose_cov.rows(), remapping.size());
   DCHECK_EQ(pose_cov.rows() * pose_cov.cols(),
-    odometry_msg.pose.covariance.size());
+            odometry_msg.pose.covariance.size());
   for (int i = 0; i < pose_cov.rows(); i++) {
     for (int j = 0; j < pose_cov.cols(); j++) {
       odometry_msg.pose
-      .covariance[remapping[i] * pose_cov.cols() + remapping[j]] =
-        pose_cov(i, j);
+          .covariance[remapping[i] * pose_cov.cols() + remapping[j]] =
+          pose_cov(i, j);
     }
   }
 
   // Linear velocities, trivial values for angular
-  const gtsam::Matrix3 & inversed_rotation = rotation.transpose();
+  const gtsam::Matrix3 &inversed_rotation = rotation.transpose();
   const VIO::Vector3 velocity_body = inversed_rotation * velocity;
   odometry_msg.twist.twist.linear.x = velocity_body(0);
   odometry_msg.twist.twist.linear.y = velocity_body(1);
@@ -98,29 +88,28 @@ void BackendInterface::publishState(
   // Velocity covariance: first linear
   // and then angular (trivial values for angular)
   const gtsam::Matrix3 vel_cov_body =
-    inversed_rotation.matrix() * vel_cov * rotation.matrix();
+      inversed_rotation.matrix() * vel_cov * rotation.matrix();
   DCHECK_EQ(vel_cov_body.rows(), 3);
   DCHECK_EQ(vel_cov_body.cols(), 3);
   DCHECK_EQ(odometry_msg.twist.covariance.size(), 36);
   for (int i = 0; i < vel_cov_body.rows(); i++) {
     for (int j = 0; j < vel_cov_body.cols(); j++) {
       odometry_msg.twist
-      .covariance[i * static_cast<int>(
-          sqrt(odometry_msg.twist.covariance.size())) +
-        j] = vel_cov_body(i, j);
+          .covariance[i * static_cast<int>(
+                              sqrt(odometry_msg.twist.covariance.size())) +
+                      j] = vel_cov_body(i, j);
     }
   }
   // Publish message
   odometry_pub_->publish(odometry_msg);
 }
 
-void BackendInterface::publishTf(const VIO::BackendOutput::Ptr & output)
-{
+void BackendInterface::publishTf(const VIO::BackendOutput::Ptr &output) {
   CHECK(output);
 
-  const VIO::Timestamp & timestamp = output->timestamp_;
-  const gtsam::Pose3 & pose = output->W_State_Blkf_.pose_;
-  const gtsam::Quaternion & quaternion = pose.rotation().toQuaternion();
+  const VIO::Timestamp &timestamp = output->timestamp_;
+  const gtsam::Pose3 &pose = output->W_State_Blkf_.pose_;
+  const gtsam::Quaternion &quaternion = pose.rotation().toQuaternion();
   // Publish base_link TF.
   TransformStamped odom_tf;
   odom_tf.header.stamp = rclcpp::Time(timestamp);
@@ -132,14 +121,13 @@ void BackendInterface::publishTf(const VIO::BackendOutput::Ptr & output)
 }
 
 void BackendInterface::publishTimeHorizonPointCloud(
-  const VIO::BackendOutput::Ptr & output) const
-{
+    const VIO::BackendOutput::Ptr &output) const {
   CHECK(output);
-  const VIO::Timestamp & timestamp = output->timestamp_;
-  const VIO::PointsWithIdMap & points_with_id =
-    output->landmarks_with_id_map_;
-  const VIO::LmkIdToLmkTypeMap & lmk_id_to_lmk_type_map =
-    output->lmk_id_to_lmk_type_map_;
+  const VIO::Timestamp &timestamp = output->timestamp_;
+  const VIO::PointsWithIdMap &points_with_id =
+      output->landmarks_in_local_window_;
+  const VIO::LmkIdToLmkTypeMap &lmk_id_to_lmk_type_map =
+      output->lmk_id_to_lmk_type_map_;
 
   if (points_with_id.size() == 0) {
     // No points to visualize.
@@ -175,7 +163,8 @@ void BackendInterface::publishTimeHorizonPointCloud(
 
   // Populate cloud structure with 3D points.
   size_t i = 0;
-  for (const std::pair<VIO::LandmarkId, gtsam::Point3>  id_point : points_with_id) {
+  for (const std::pair<VIO::LandmarkId, gtsam::Point3> id_point :
+       points_with_id) {
     const gtsam::Point3 point_3d = id_point.second;
     *iter_x = static_cast<float>(point_3d.x());
     *iter_y = static_cast<float>(point_3d.y());
@@ -183,26 +172,26 @@ void BackendInterface::publishTimeHorizonPointCloud(
 
     if (color_the_cloud) {
       DCHECK(lmk_id_to_lmk_type_map.find(id_point.first) !=
-        lmk_id_to_lmk_type_map.end());
+             lmk_id_to_lmk_type_map.end());
       switch (lmk_id_to_lmk_type_map.at(id_point.first)) {
-        case VIO::LandmarkType::SMART: {
-            *iter_r = 0;
-            *iter_g = 255;
-            *iter_b = 0;
-            break;
-          }
-        case VIO::LandmarkType::PROJECTION: {
-            *iter_r = 0;
-            *iter_g = 0;
-            *iter_b = 255;
-            break;
-          }
-        default: {
-            *iter_r = 255;
-            *iter_g = 0;
-            *iter_b = 0;
-            break;
-          }
+      case VIO::LandmarkType::SMART: {
+        *iter_r = 0;
+        *iter_g = 255;
+        *iter_b = 0;
+        break;
+      }
+      case VIO::LandmarkType::PROJECTION: {
+        *iter_r = 0;
+        *iter_g = 0;
+        *iter_b = 255;
+        break;
+      }
+      default: {
+        *iter_r = 255;
+        *iter_g = 0;
+        *iter_b = 0;
+        break;
+      }
       }
     }
     ++iter_x;
@@ -216,5 +205,5 @@ void BackendInterface::publishTimeHorizonPointCloud(
   pointcloud_pub_->publish(std::move(pc_msg));
 }
 
-}  // namespace interfaces
-}  // namespace kimera_vio_ros
+} // namespace interfaces
+} // namespace kimera_vio_ros

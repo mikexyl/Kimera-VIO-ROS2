@@ -13,7 +13,7 @@
   <!-- If true, SparkVio will enable the LoopClosureDetector module. -->
   <arg name="use_lcd" default="false"/>
 
-  <arg name="params_folder" default="$(find-pkg-share kimera_vio_ros)/param/$(var dataset_name)"/>
+  <arg name="params_folder" default="$(find-pkg-share kimera_vio)/params/$(var dataset_name)"/>
 
   <!-- Specify the absolute path to the vocabulary file. -->
   <!-- This is usually in the VIO directory (VIO/vocabulary/ORBvoc.yml). -->
@@ -98,15 +98,5 @@
     <!-- Load calibration -->
     <!-- <rosparam command="load" file="$(var params_folder)/calibration.yaml"/> -->
   </node>
-
-  <!-- Launch visualizer -->
-  <!-- <include file="$(find pose_graph_tools)/launch/posegraph_view.launch" >
-  <arg name="frame"         value="$(var world_frame_id)" />
-  <arg name="graph_topic"   value="pose_graph" />
-  <arg name="ns"            value="kimera_vio_ros"/>
-  </include> -->
-
-  <!-- <node pkg="demo_nodes_cpp" exec="talker"/>
-  <node pkg="demo_nodes_cpp" exec="listener"/> -->
 
 </launch>

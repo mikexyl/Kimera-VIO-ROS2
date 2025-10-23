@@ -8,12 +8,78 @@ version = "0.1.0"
 [activation]
 scripts = ["/opt/ros/jazzy/setup.bash", "/workspaces/install/setup.bash"]
 
+[activation.env]
+ONNX_VERSION = "1.23.1"
+FAISS_VERSION = "v1.12.0"
+LD_LIBRARY_PATH = "$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/workspaces/src/gpu/onnxruntime-linux-x64-gpu-1.23.1/lib:/workspaces/src/gpu/faiss/build/lib"
+
 [tasks]
 play-euroc-m1 = "cd /datasets_extra/euroc && ros2 bag play MH_01_easy --start-offset 30"
+clone-faiss = "cd gpu && git clone https://github.com/facebookresearch/faiss.git && cd faiss && git checkout v1.12.0"
+download-onnx = { cwd = "gpu", cmd = "wget https://github.com/microsoft/onnxruntime/releases/download/v1.23.1/onnxruntime-linux-x64-gpu-1.23.1.tgz && tar -xvzf onnxruntime-linux-x64-gpu-${ONNX_VERSION}.tgz " }
+build-vilib = {cwd = "gpu/vilib", cmd = ["mkdir", "-p", "build", "&&", "cd", "build", "&&", "cmake", "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_INSTALL_PREFIX=/usr/local", "-DCMAKE_CXX_FLAGS=-Wno-overloaded-virtual", "-G", "Ninja", "..", "&&", "ninja", "&&", "sudo", "ninja", "install"]}
+clone-gtsam = {cmd = "git clone https://github.com/mikexyl/gtsam.git borglab/gtsam && cd borglab/gtsam && git checkout feature/dynamic_noise_smart_factor" }
+build-gtsam = { cmd = "cd borglab/gtsam && touch COLCON_IGNORE && mkdir -p build && cd build && cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release -DGTSAM_USE_SYSTEM_METIS=ON -DGTSAM_BUILD_UNSTABLE=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_TANGENT_PREINTEGRATION=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -G Ninja -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF .. && ninja && sudo ninja install" }
+
+[tasks.build-faiss]
+cwd = "gpu/faiss"
+cmd = [
+  "git checkout ${FAISS_VERSION}",
+  "&&",
+  "cmake",
+  "-B",
+  "build",
+  "-DFAISS_ENABLE_GPU=ON",
+  "-DFAISS_ENABLE_PYTHON=OFF",
+  "-DBUILD_SHARED_LIBS=ON",
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DCMAKE_INSTALL_PREFIX=/usr/local",
+  "-DBUILD_TESTING=OFF",
+  "-G",
+  "Ninja",
+  "&&",
+  "cmake",
+  "--build",
+  "build",
+  "&&",
+  "sudo",
+  "cmake",
+  "--install",
+  "build",
+]
+
+
+[tasks.build-all]
+cwd = "/workspaces"
+cmd = "colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -GNinja -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF -DGTSAM_WITH_TBB=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_USE_SYSTEM_METIS=ON -DKIMERA_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 
 [tasks.build]
 cwd = "/workspaces"
-cmd = "colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -GNinja -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF -DGTSAM_WITH_TBB=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_USE_SYSTEM_METIS=ON -DKIMERA_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+cmd = [
+  "colcon",
+  "build",
+  "--symlink-install",
+  "--packages-up-to",
+  "{{ package }}",
+  "--cmake-args",
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-GNinja",
+  "-DGTSAM_BUILD_TESTS=OFF",
+  "-DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF",
+  "-DGTSAM_WITH_TBB=ON",
+  "-DGTSAM_USE_SYSTEM_EIGEN=ON",
+  "-DGTSAM_USE_SYSTEM_METIS=ON",
+  "-DKIMERA_BUILD_TESTS=OFF",
+  "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+  "-DBUILD_TESTING=OFF",
+  "-DKIMERA_BUILD_TESTS=OFF",
+  "-Donnxruntime_DIR=/workspaces/src/gpu/onnxruntime-linux-x64-gpu-1.23.1",
+  "-DCUBLAS_DIR=/usr/local/cuda",
+  "-Dfaiss_DIR=/workspaces/src/gpu/faiss/build",
+  "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+  "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+]
+args = ["package"]
 
 [tasks.kimera]
 cmd = "ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml verbosity:=0"
@@ -21,6 +87,12 @@ cmd = "ros2 launch kimera_vio_ros kimera_vio_ros.launch.xml verbosity:=0"
 [tasks.build-rerun]
 cwd = "/tmp"
 cmd = "wget -c https://github.com/rerun-io/rerun/releases/download/0.25.1/rerun_cpp_sdk.zip && unzip rerun_cpp_sdk.zip && cd rerun_cpp_sdk && mkdir build && cd build && cmake -GNinja -DCMAKE_POSITION_INDEPENDENT_CODE=ON .. && sudo ninja install"
+
+[tasks.de-euroc]
+cmd = "ros2 launch kimera_vio_ros kimera_vio_ros.launch.py"
+
+[tasks.asapp-demo]
+cmd = "ros2 launch asap_demo asap_demo.launch.py"
 
 [dependencies]
 ninja = ">=1.13.1,<2"

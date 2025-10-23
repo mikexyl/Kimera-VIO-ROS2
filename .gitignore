@@ -67,3 +67,9 @@ kimera_graph_msgs
 kimera_graph_visualizer
 laurentkneip
 MIT-SPARK
+gpu
+borglab
+
+*.pyc
+*/*.pyc
+*/*.pyo

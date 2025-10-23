@@ -34,6 +34,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(aria_viz REQUIRED)
 find_package(aria_common REQUIRED)
+find_package(pose_graph_tools_msgs REQUIRED)
 
 kimera_package()
 
@@ -51,6 +52,7 @@ set(dependencies
   pcl_msgs
   rclcpp
   rclcpp_components
+  pose_graph_tools_msgs
   sensor_msgs
   tf2_ros
 )

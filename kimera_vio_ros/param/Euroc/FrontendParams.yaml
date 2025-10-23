@@ -11,7 +11,7 @@ maxFeatureAge: 25
 # 1: ORB
 # 2: AGAST
 # 3: GFTT, aka Good Features To Track
-feature_detector_type: 3
+feature_detector_type: 4
 maxFeaturesPerFrame: 300
 
 # Good Features To Track specific parameters
@@ -87,3 +87,40 @@ pnp_algorithm: 3 # EPNP
 min_pnp_inliers: 20
 ransac_threshold_pnp: 1.0 # pixels
 optimize_2d3d_pose_from_inliers: 0
+
+# 3D-3D pose estimation
+use_3d3d_tracking: 1
+optimize_3d3d_pose_from_inliers: 0
+
+# 2D-3D pose estimation method
+use_pnp_tracking: 0
+pnp_algorithm: 3 # EPNP
+min_pnp_inliers: 20
+ransac_threshold_pnp: 1.0 # pixels
+optimize_2d3d_pose_from_inliers: 0
+
+# xfeat params
+xfeat_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/xfeat_640x480.onnx
+interp_bilinear_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/interpolator_bilinear_640x480.onnx
+interp_bicubic_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/interpolator_bicubic_640x480.onnx
+interp_nearest_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/interpolator_nearest_640x480.onnx
+xfeat_use_gpu: 1
+matcher_type: 0 # 0: Brute Force, 1: FLANN, 2: LighterGlue
+
+feature_tracker_type: 1 # 0: OpticalFlow, 1: LighterGlue 2: Flann 3: GpuBFMatcher
+num_features: 500
+lg_model_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/lg_640x480_dyn.onnx
+gpu_bf_min_sim: 0.3 # Minimum similarity for GpuBFMatcher
+search_radius: 100
+track_on_keyframe: 1
+
+min_lmk_merge_sim: 0.7
+max_lmk_merge_px: 5
+
+vilib_cell_width: 32
+vilib_cell_height: 32
+
+kf_queue_size: 10
+rematch_threshold: 0.5
+
+xfeat_use_of_points: 1

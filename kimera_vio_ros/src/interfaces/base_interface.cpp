@@ -34,8 +34,8 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   vio_params_->camera_params_[0].print();
   vio_params_->camera_params_[1].print();
 
-  auto rerun_visualizer =
-      std::make_unique<VIO::RerunVisualizer>(VIO::RerunVisualizer::Params{});
+  auto rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
+      VIO::RerunVisualizer::Params{.result_dir = "/tmp/deslam"});
 
   vio_pipeline_.reset();
   vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(
