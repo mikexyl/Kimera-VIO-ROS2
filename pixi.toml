@@ -89,7 +89,7 @@ cwd = "/tmp"
 cmd = "wget -c https://github.com/rerun-io/rerun/releases/download/0.25.1/rerun_cpp_sdk.zip && unzip rerun_cpp_sdk.zip && cd rerun_cpp_sdk && mkdir build && cd build && cmake -GNinja -DCMAKE_POSITION_INDEPENDENT_CODE=ON .. && sudo ninja install"
 
 [tasks.de-euroc]
-cmd = "ros2 launch kimera_vio_ros kimera_vio_ros.launch.py"
+cmd = "ros2 launch kimera_vio_ros kimera_vio_ros_mono.launch.py"
 
 [tasks.asapp-demo]
 cmd = "ros2 launch asap_demo asap_demo.launch.py"

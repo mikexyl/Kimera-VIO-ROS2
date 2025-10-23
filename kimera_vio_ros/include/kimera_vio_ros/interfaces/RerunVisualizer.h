@@ -94,7 +94,7 @@ public:
                   std::string gt_csv_file = "",
                   std::optional<std::string> recording_id = std::nullopt,
                   std::string result_dir = "")
-      : VIO::Visualizer3D(VIO::VisualizationType::kMesh2dTo3dSparse),
+      : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
             "kimera_vio", recording_id, "rerun+http://172.17.0.1:9876/proxy")),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
@@ -219,6 +219,8 @@ public:
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
+    LOG(INFO) << "Backend output timestamp: " << input.timestamp_;
+
     odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
     odom_states_.insert(input.backend_output_->cur_kf_id_,
                         input.backend_output_->W_State_Blkf_.pose_);
@@ -227,10 +229,10 @@ public:
     this->drawTrajectory(map_ / odom_ / "trajectory", odom_traj_,
                          aria::viz::ColorMap::kGreen, 1.f, false);
 
-    auto cur_cov = input.backend_output_->state_covariance_lkf_;
-    this->drawUncertainty(map_ / odom_ / baselink_ / "covariance",
-                          Pose3::Identity(), cur_cov.block<3, 3>(0, 0),
-                          aria::viz::ColorMap::kGreen, 0.1);
+    // auto cur_cov = input.backend_output_->state_covariance_lkf_;
+    // this->drawUncertainty(map_ / odom_ / baselink_ / "covariance",
+    //                       Pose3::Identity(), cur_cov.block<3, 3>(0, 0),
+    //                       aria::viz::ColorMap::kGreen, 0.1);
 
     cv::Mat tracking_image_clone =
         input.frontend_output_->getTrackingImage()->clone();

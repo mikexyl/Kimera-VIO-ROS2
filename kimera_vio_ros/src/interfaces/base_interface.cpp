@@ -2,6 +2,7 @@
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
+#include <kimera-vio/pipeline/MonoImuPipeline.h>
 #include <kimera-vio/pipeline/StereoImuPipeline.h>
 
 using namespace std::chrono_literals;
@@ -31,15 +32,23 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   CHECK(!params_folder_.empty());
   vio_params_ = std::make_shared<VIO::VioParams>(params_folder_);
 
-  vio_params_->camera_params_[0].print();
-  vio_params_->camera_params_[1].print();
+  // Determine if this is a mono or stereo setup based on number of cameras
+  bool is_mono = vio_params_->frontend_type_ == VIO::FrontendType::kMonoImu;
 
   auto rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
       VIO::RerunVisualizer::Params{.result_dir = "/tmp/deslam"});
 
   vio_pipeline_.reset();
-  vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(
-      *vio_params_, std::move(rerun_visualizer), nullptr, nullptr);
+  if (is_mono) {
+    RCLCPP_INFO(node_->get_logger(), "Initializing Mono VIO Pipeline");
+    vio_pipeline_ = std::make_shared<VIO::MonoImuPipeline>(
+        *vio_params_, std::move(rerun_visualizer), nullptr, nullptr);
+  } else {
+    RCLCPP_INFO(node_->get_logger(), "Initializing Stereo VIO Pipeline");
+    vio_params_->camera_params_[1].print();
+    vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(
+        *vio_params_, std::move(rerun_visualizer), nullptr, nullptr);
+  }
 }
 
 BaseInterface::~BaseInterface() {

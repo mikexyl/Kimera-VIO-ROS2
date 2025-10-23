@@ -53,15 +53,10 @@ def generate_launch_description():
         default_value='/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/vocabulary/ORBvoc.yml',
         description='Absolute path to the ORB vocabulary file.'
     )
-    topic_left_image_arg = DeclareLaunchArgument(
-        'topic.left.image',
+    topic_image_arg = DeclareLaunchArgument(
+        'topic.image',
         default_value='/cam0/image_raw',
-        description='Left camera image topic.'
-    )
-    topic_right_image_arg = DeclareLaunchArgument(
-        'topic.right.image',
-        default_value='/cam1/image_raw',
-        description='Right camera image topic.'
+        description='Camera image topic.'
     )
     topic_imu_data_arg = DeclareLaunchArgument(
         'topic.imu.data',
@@ -73,15 +68,10 @@ def generate_launch_description():
         default_value='false',
         description='Subscribe to camera info topics if true.'
     )
-    topic_left_info_arg = DeclareLaunchArgument(
-        'topic.left.info',
+    topic_camera_info_arg = DeclareLaunchArgument(
+        'topic.camera.info',
         default_value='/cam0/camera_info',
-        description='Left camera info topic.'
-    )
-    topic_right_info_arg = DeclareLaunchArgument(
-        'topic.right.info',
-        default_value='/cam1/camera_info',
-        description='Right camera info topic.'
+        description='Camera info topic.'
     )
     frame_id_base_link_arg = DeclareLaunchArgument(
         'frame_id.base_link',
@@ -135,16 +125,13 @@ def generate_launch_description():
         'use_camera_info': LaunchConfiguration('use_camera_info'),
         'velocity_det_threshold': 0.1,
         'position_det_threshold': 0.3,
-        'stereo_ransac_threshold': 20,
         'mono_ransac_threshold': 30,
     }]
 
     remappings = [
-        ('left/image', LaunchConfiguration('topic.left.image')),
-        ('right/image', LaunchConfiguration('topic.right.image')),
+        ('image', LaunchConfiguration('topic.image')),
         ('imu/data', LaunchConfiguration('topic.imu.data')),
-        ('left/camera_info', LaunchConfiguration('topic.left.info')),
-        ('right/camera_info', LaunchConfiguration('topic.right.info')),
+        ('camera_info', LaunchConfiguration('topic.camera.info')),
         ('odometry', 'odometry'),
         ('resiliency', 'resiliency'),
         ('imu_bias', 'imu_bias'),
@@ -158,9 +145,9 @@ def generate_launch_description():
 
     kimera_vio_node = Node(
         package='kimera_vio_ros',
-        executable='stereo_vio_node',
+        executable='mono_vio_node',
         namespace='kimera_vio_ros',
-        name='kimera_vio_ros',
+        name='kimera_vio_ros_mono',
         output='screen',
         arguments=node_arguments,
         parameters=node_parameters,
@@ -177,12 +164,10 @@ def generate_launch_description():
         use_lcd_arg,
         params_folder_arg,
         path_to_vocab_arg,
-        topic_left_image_arg,
-        topic_right_image_arg,
+        topic_image_arg,
         topic_imu_data_arg,
         use_camera_info_arg,
-        topic_left_info_arg,
-        topic_right_info_arg,
+        topic_camera_info_arg,
         frame_id_base_link_arg,
         frame_id_map_arg,
         frame_id_world_arg,

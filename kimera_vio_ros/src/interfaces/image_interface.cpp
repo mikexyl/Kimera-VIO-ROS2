@@ -76,22 +76,20 @@ const cv::Mat ImageInterface::readRosImage(
   cv_bridge::CvImageConstPtr cv_constptr;
   cv_constptr = cv_bridge::toCvShare(img_msg);
 
+  cv::Mat bgr_image;
+
   if (img_msg->encoding == sensor_msgs::image_encodings::BGR8) {
     // LOG(WARNING) << "Converting image...";
-    cv::cvtColor(cv_constptr->image, cv_constptr->image, cv::COLOR_BGR2GRAY);
+    // cv::cvtColor(cv_constptr->image, cv_constptr->image, cv::COLOR_BGR2GRAY);
+    bgr_image = cv_constptr->image;
   } else {
     CHECK_EQ(cv_constptr->encoding, sensor_msgs::image_encodings::MONO8)
         << "Expected image with MONO8 or BGR8 encoding.";
+    // convert to bgr
+    cv::cvtColor(cv_constptr->image, bgr_image, cv::COLOR_GRAY2BGR);
   }
 
-  // save image for debugging
-  // static int img_id = 0;
-  // std::string img_name = "/tmp/img_convert_" + std::to_string(img_id) + ".png";
-  // cv::imwrite(img_name, cv_constptr->image);
-  // LOG(ERROR) << "Image saved to " << img_name;
-  // img_id++;
-
-  return cv_constptr->image.clone();
+  return bgr_image;
 }
 
 } // namespace interfaces
