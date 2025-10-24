@@ -256,7 +256,7 @@ public:
     Landmarks lmks_vec;
     // convert landmark id->landmark map to vector
     for (const auto &[id, landmark] :
-         input.backend_output_->landmarks_in_local_window_) {
+         input.backend_output_->landmarks_with_id_map_) {
       lmks_vec.push_back(landmark);
     }
 
