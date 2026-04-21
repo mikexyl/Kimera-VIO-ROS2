@@ -32,6 +32,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(TIFF REQUIRED)
 find_package(aria_viz REQUIRED)
 find_package(aria_common REQUIRED)
 find_package(pose_graph_tools_msgs REQUIRED)
@@ -74,14 +75,14 @@ ament_target_dependencies(${library_name}
 rclcpp_components_register_nodes(${library_name}
   "kimera_vio_ros::components::StereoVio")
 target_link_libraries(${library_name}
-  kimera_vio aria_common aria_viz)
+  kimera_vio aria_common aria_viz TIFF::TIFF)
 
 add_executable(stereo_vio_node
   src/stereo_vio_node.cpp)
 ament_target_dependencies(stereo_vio_node
   ${dependencies})
 target_link_libraries(stereo_vio_node
-  ${library_name})
+  ${library_name} TIFF::TIFF)
 
 set(executable_names
   stereo_vio_node

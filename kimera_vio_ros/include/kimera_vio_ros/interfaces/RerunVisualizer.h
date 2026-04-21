@@ -26,6 +26,8 @@ public:
   void send(google::LogSeverity severity, const char *full_filename,
             const char *base_filename, int line, const struct tm *tm_time,
             const char *message, size_t message_len) override {
+    (void)full_filename;
+    (void)tm_time;
     // Build message string and forward to custom handler
     std::string msg(message, message_len);
     handler_(severity, base_filename, line, msg.c_str());
@@ -74,6 +76,8 @@ private:
 
 class RerunVisualizer : public Visualizer3D, aria::viz::VisualizerRerun {
 public:
+  static constexpr char kPoseSymbolChar = 'x';
+
   struct Params {
     std::string base_link_frame_id = "baselink";
     std::string odom_frame_id = "odom";
@@ -94,7 +98,8 @@ public:
                   std::string gt_csv_file = "",
                   std::optional<std::string> recording_id = std::nullopt,
                   std::string result_dir = "")
-      : VIO::Visualizer3D(VIO::VisualizationType::kNone),
+      : VIO::Visualizer3D(VIO::VisualizationType::kNone,
+                          VIO::BackendType::kStereoImu),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
             "kimera_vio", recording_id, "rerun+http://172.17.0.1:9876/proxy")),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
@@ -187,6 +192,8 @@ public:
 
   void logGlogMessages(google::LogSeverity severity, const char *filename,
                        int line, const char *message) {
+    (void)filename;
+    (void)line;
     // glog severity to Rerun log level
     rerun::TextLogLevel level;
     switch (severity) {
@@ -234,10 +241,7 @@ public:
     //                       Pose3::Identity(), cur_cov.block<3, 3>(0, 0),
     //                       aria::viz::ColorMap::kGreen, 0.1);
 
-    cv::Mat tracking_image_clone =
-        input.frontend_output_->getTrackingImage()->clone();
-
-    auto K = input.frontend_output_->getTrackingFrame()->cam_param_.K_;
+    cv::Mat tracking_image_clone = input.frontend_output_->feature_tracks_.clone();
 
     // only draw every 3 frames
     // if (input.backend_output_->cur_kf_id_ % 3 == 0) {
@@ -248,7 +252,7 @@ public:
     //                    false);
     // }
 
-    if (not input.frontend_output_->getTrackingImage()->empty()) {
+    if (not input.frontend_output_->feature_tracks_.empty()) {
       cv::Mat small_image;
       cv::resize(tracking_image_clone, small_image, cv::Size(), 0.5, 0.5);
       this->drawImage(map_ / odom_ / baselink_ / "tracking" / "image",

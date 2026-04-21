@@ -1,6 +1,5 @@
 #include "kimera_vio_ros/interfaces/stereo_interface.hpp"
 #include <glog/logging.h>
-#include <kimera-vio/pipeline/StereoImuPipeline.h>
 
 namespace kimera_vio_ros {
 namespace interfaces {
@@ -11,15 +10,9 @@ StereoInterface::StereoInterface(rclcpp::Node::SharedPtr &node)
   this->registerLeftFrameCallback(std::bind(&VIO::Pipeline::fillLeftFrameQueue,
                                             vio_pipeline_.get(),
                                             std::placeholders::_1));
-
-  auto stereo_pipeline =
-      std::dynamic_pointer_cast<VIO::StereoImuPipeline>(vio_pipeline_);
-  CHECK(stereo_pipeline != nullptr)
-      << "vio_pipeline_ was not correctly initialized as a StereoImuPipeline";
-
   this->registerRightFrameCallback(
-      std::bind(&VIO::StereoImuPipeline::fillRightFrameQueue,
-                stereo_pipeline.get(), std::placeholders::_1));
+      std::bind(&VIO::Pipeline::fillRightFrameQueue, vio_pipeline_.get(),
+                std::placeholders::_1));
 
   callback_group_stereo_ =
       node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);

@@ -109,7 +109,6 @@ void BackendInterface::publishTf(const VIO::BackendOutput::Ptr &output) {
 
   const VIO::Timestamp &timestamp = output->timestamp_;
   const gtsam::Pose3 &pose = output->W_State_Blkf_.pose_;
-  const gtsam::Quaternion &quaternion = pose.rotation().toQuaternion();
   // Publish base_link TF.
   TransformStamped odom_tf;
   odom_tf.header.stamp = rclcpp::Time(timestamp);
@@ -125,7 +124,7 @@ void BackendInterface::publishTimeHorizonPointCloud(
   CHECK(output);
   const VIO::Timestamp &timestamp = output->timestamp_;
   const VIO::PointsWithIdMap &points_with_id =
-      output->landmarks_in_local_window_;
+      output->landmarks_with_id_map_;
   const VIO::LmkIdToLmkTypeMap &lmk_id_to_lmk_type_map =
       output->lmk_id_to_lmk_type_map_;
 

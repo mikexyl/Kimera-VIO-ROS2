@@ -2,7 +2,6 @@
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
-#include <kimera-vio/pipeline/StereoImuPipeline.h>
 
 using namespace std::chrono_literals;
 
@@ -37,25 +36,50 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   auto rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
       VIO::RerunVisualizer::Params{.result_dir = "/tmp/deslam"});
 
+  rerun_visualizer_module_ = std::make_unique<VIO::VisualizerModule>(
+      nullptr, vio_params_->parallel_run_, std::move(rerun_visualizer));
+
   vio_pipeline_.reset();
-  vio_pipeline_ = std::make_shared<VIO::StereoImuPipeline>(
-      *vio_params_, std::move(rerun_visualizer), nullptr, nullptr);
+  vio_pipeline_ = std::make_shared<VIO::Pipeline>(*vio_params_);
+  vio_pipeline_->registerBackendOutputCallback(
+      std::bind(&VIO::VisualizerModule::fillBackendQueue,
+                std::ref(*rerun_visualizer_module_), std::placeholders::_1));
+  vio_pipeline_->registerFrontendOutputCallback(
+      std::bind(&VIO::VisualizerModule::fillFrontendQueue,
+                std::ref(*rerun_visualizer_module_), std::placeholders::_1));
 }
 
 BaseInterface::~BaseInterface() {
-  vio_pipeline_->shutdown();
+  if (rerun_visualizer_module_) {
+    rerun_visualizer_module_->shutdown();
+  }
+  if (vio_pipeline_) {
+    vio_pipeline_->shutdown();
+  }
   if (vio_params_->parallel_run_) {
-    handle_pipeline_.get();
+    if (handle_rerun_visualizer_.valid()) {
+      handle_rerun_visualizer_.get();
+    }
+    if (handle_pipeline_.valid()) {
+      handle_pipeline_.get();
+    }
   }
 }
 
 void BaseInterface::start() {
   if (vio_params_->parallel_run_) {
+    handle_rerun_visualizer_ =
+        std::async(std::launch::async, &VIO::VisualizerModule::spin,
+                   rerun_visualizer_module_.get());
     handle_pipeline_ = std::async(std::launch::async, &VIO::Pipeline::spin,
                                   vio_pipeline_.get());
   } else {
     pipeline_timer_ = node_->create_wall_timer(
-        10ms, std::bind(&VIO::Pipeline::spin, vio_pipeline_.get()),
+        10ms,
+        [this]() {
+          vio_pipeline_->spin();
+          rerun_visualizer_module_->spin();
+        },
         callback_group_pipeline_);
   }
 }
