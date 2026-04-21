@@ -11,7 +11,7 @@ maxFeatureAge: 25
 # 1: ORB
 # 2: AGAST
 # 3: GFTT, aka Good Features To Track
-feature_detector_type: 4
+feature_detector_type: 3
 maxFeaturesPerFrame: 300
 
 # Good Features To Track specific parameters
@@ -35,12 +35,8 @@ maxPointDist: 10
 bidirectionalMatching: 0
 
 # Non-maximum suppression params
-max_nr_keypoints_before_anms: 2000
 enable_non_max_suppression: 1
-non_max_suppression_type: 6
-nr_horizontal_bins: 7
-nr_vertical_bins: 5
-binning_mask: []
+non_max_suppression_type: 4
 
 # Subpixel corner refinement for the monocular case
 enable_subpixel_corner_finder: 1
@@ -50,6 +46,13 @@ window_size: 10
 zero_zone: -1
 
 subpixelRefinementStereo: 0
+featureSelectionCriterion: 0
+featureSelectionHorizon: 3
+featureSelectionNrCornersToSelect: 600
+featureSelectionImuRate: 0.005
+featureSelectionDefaultDepth: 2
+featureSelectionCosineNeighborhood: 0.984807753012208 # Rad
+featureSelectionUseLazyEvaluation: 1
 useSuccessProbabilities: 1
 useRANSAC: 1
 minNrMonoInliers: 10
@@ -61,9 +64,7 @@ ransac_use_2point_mono: 1
 ransac_max_iterations: 100
 ransac_probability: 0.995
 ransac_randomize: 0
-min_intra_keyframe_time: 0.2
-max_intra_keyframe_time: 5.0
-max_disparity_since_lkf: 1000 #large value to disable
+intra_keyframe_time: 0.2
 minNumberFeatures: 0
 useStereoTracking: 1
 disparityThreshold: 0.5
@@ -71,56 +72,3 @@ disparityThreshold: 0.5
 # 0: Static - assumes no optical flow between images (aka static camera).
 # 1: Rotational - use IMU gyro to estimate optical flow.
 optical_flow_predictor_type: 1
-
-# 2D-2D pose estimation method
-use_2d2d_tracking: 1
-2d2d_algorithm: 1 # Nister
-optimize_2d2d_pose_from_inliers: 0
-
-# 3D-3D pose estimation
-use_3d3d_tracking: 1
-optimize_3d3d_pose_from_inliers: 0
-
-# 2D-3D pose estimation method
-use_pnp_tracking: 0
-pnp_algorithm: 3 # EPNP
-min_pnp_inliers: 20
-ransac_threshold_pnp: 1.0 # pixels
-optimize_2d3d_pose_from_inliers: 0
-
-# 3D-3D pose estimation
-use_3d3d_tracking: 1
-optimize_3d3d_pose_from_inliers: 0
-
-# 2D-3D pose estimation method
-use_pnp_tracking: 0
-pnp_algorithm: 3 # EPNP
-min_pnp_inliers: 20
-ransac_threshold_pnp: 1.0 # pixels
-optimize_2d3d_pose_from_inliers: 0
-
-# xfeat params
-xfeat_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/xfeat_640x480.onnx
-interp_bilinear_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/interpolator_bilinear_640x480.onnx
-interp_bicubic_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/interpolator_bicubic_640x480.onnx
-interp_nearest_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/interpolator_nearest_640x480.onnx
-xfeat_use_gpu: 1
-matcher_type: 0 # 0: Brute Force, 1: FLANN, 2: LighterGlue
-
-feature_tracker_type: 1 # 0: OpticalFlow, 1: LighterGlue 2: Flann 3: GpuBFMatcher
-num_features: 500
-lg_model_path: /workspaces/src/gpu/xfeat-cpp/onnx_model/lg_640x480_dyn.onnx
-gpu_bf_min_sim: 0.3 # Minimum similarity for GpuBFMatcher
-search_radius: 100
-track_on_keyframe: 1
-
-min_lmk_merge_sim: 0.7
-max_lmk_merge_px: 5
-
-vilib_cell_width: 32
-vilib_cell_height: 32
-
-kf_queue_size: 10
-rematch_threshold: 0.5
-
-xfeat_use_of_points: 1

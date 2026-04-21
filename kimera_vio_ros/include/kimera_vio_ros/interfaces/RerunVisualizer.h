@@ -101,11 +101,11 @@ public:
       : VIO::Visualizer3D(VIO::VisualizationType::kNone,
                           VIO::BackendType::kStereoImu),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
-            "kimera_vio", recording_id, "rerun+http://172.17.0.1:9876/proxy")),
+            "kimera_vio", recording_id, "rerun+http://127.0.0.1:9876/proxy")),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
         result_dir_(result_dir) {
     // draw the origin frame for visualization
-    this->drawTf(map_, Pose3::Identity(), 0.3, true);
+    this->drawTf(map_, Pose3(), 0.3, true);
 
     if (not g_custom_sink) {
       AddGlogCustomSink([this](google::LogSeverity severity,
@@ -226,8 +226,6 @@ public:
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
-    LOG(INFO) << "Backend output timestamp: " << input.timestamp_;
-
     odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
     odom_states_.insert(input.backend_output_->cur_kf_id_,
                         input.backend_output_->W_State_Blkf_.pose_);
@@ -257,46 +255,6 @@ public:
       cv::resize(tracking_image_clone, small_image, cv::Size(), 0.5, 0.5);
       this->drawImage(map_ / odom_ / baselink_ / "tracking" / "image",
                       small_image, false);
-    }
-
-    Landmarks lmks_vec;
-    // convert landmark id->landmark map to vector
-    for (const auto &[id, landmark] :
-         input.backend_output_->landmarks_with_id_map_) {
-      lmks_vec.push_back(landmark);
-    }
-
-    // find the earliest pose
-    FrameId earliest_frame = std::numeric_limits<FrameId>::max();
-    for (auto key : input.backend_output_->state_.keys()) {
-      Symbol symbol(key);
-      if (symbol.chr() == kPoseSymbolChar) {
-        if (symbol.index() < earliest_frame) {
-          earliest_frame = symbol.index();
-        }
-      }
-    }
-
-    Pose3 T_smoother_pose = input.backend_output_->state_.at<Pose3>(
-        gtsam::Symbol(kPoseSymbolChar, earliest_frame));
-    Pose3 T_odom_pose = odom_states_.at<Pose3>(earliest_frame);
-    Pose3 W_T_smoother = T_odom_pose * T_smoother_pose.inverse();
-
-    smoother_states_.clear();
-    smoother_states_.insert_or_assign(input.backend_output_->state_);
-    visualizeLandmarks(map_ / odom_ / "smoother", lmks_vec,
-                       aria::viz::ColorMap::kRed);
-    drawTf(map_ / odom_ / "smoother", W_T_smoother);
-    drawPoints(map_ / odom_ / "smoother" / "states",
-               input.backend_output_->state_, {aria::viz::ColorMap::kRed},
-               {0.5});
-    pose_states_.clear();
-    for (const auto &key : smoother_states_.keys()) {
-      Symbol symbol(key);
-      if (symbol.chr() == kPoseSymbolChar) {
-        pose_states_.insert_or_assign(symbol.index(),
-                                      smoother_states_.at<Pose3>(key));
-      }
     }
 
     // Check if it's time to save trajectories (every 10 seconds)
@@ -405,26 +363,6 @@ public:
         }
       }
     }
-  }
-
-  void visualizeGraphInSmoother(const VIO::VisualizerInput &input) {
-    this->drawPoints(map_ / odom_ / "smoother" / "values",
-                     input.backend_output_->state_, {aria::viz::ColorMap::kRed},
-                     {2.}, {}, false);
-    if (not input.backend_output_->debug_info_.graphBeforeOpt.empty()) {
-      this->drawFactors(map_ / odom_ / "smoother" / "graph",
-                        input.backend_output_->debug_info_.graphBeforeOpt,
-                        input.backend_output_->state_,
-                        aria::viz::ColorMap::kRed, 1., false, true);
-    }
-  }
-
-  void visualizeLandmarks(std::filesystem::path base_frame,
-                          const Landmarks &landmarks, Eigen::Vector4f color) {
-    std::vector<Point3> lmk_points(landmarks.begin(), landmarks.end());
-
-    this->drawPoints(base_frame / "landmarks", lmk_points, {color}, {0.001}, {},
-                     false);
   }
 
   void checkAndSaveTrajectories(const gtsam::Values &states = gtsam::Values()) {
@@ -617,21 +555,15 @@ private:
   std::map<std::string, std::future<void>> save_traj_futures_;
   std::future<void> lcd_output_future_;
 
-  gtsam::Values smoother_states_;
-  gtsam::Values pose_states_;
-
   std::map<Timestamp, Pose3> gt_trajectory_;
-  Pose3 T_map_gt_ = Pose3::Identity();
+  Pose3 T_map_gt_ = Pose3();
   size_t prev_alignment_size_ = 0;
 
   std::string result_dir_{};
 
-  PointsWithIdMap landmarks_in_odom_;
-
   FrameIDTimestampMap timestamp_map_;
 
   std::optional<std::pair<FrameId, FrameId>> last_odom_pair_{std::nullopt};
-  ISAM2 isam2_;
 
   std::mutex rerun_mutex_;
 

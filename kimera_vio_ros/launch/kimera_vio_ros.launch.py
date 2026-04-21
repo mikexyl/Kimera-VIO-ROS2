@@ -110,7 +110,7 @@ def generate_launch_description():
     )
 
     node_arguments = [
-        '--use_lcd', LaunchConfiguration('use_lcd'),
+        ['--use_lcd=', LaunchConfiguration('use_lcd')],
         '--vocabulary_path', LaunchConfiguration('path_to_vocab'),
         '--flagfile', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Mesher.flags']),
         '--flagfile', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'VioBackend.flags']),
@@ -120,9 +120,9 @@ def generate_launch_description():
         '--colorlogtostderr', '1',
         '--log_prefix', '1',
         '--v', LaunchConfiguration('verbosity'),
-        '--log_output', LaunchConfiguration('log_output'),
+        ['--log_output=', LaunchConfiguration('log_output')],
         '--output_path', LaunchConfiguration('log_output_path'),
-        '--visualize', LaunchConfiguration('visualize'),
+        ['--visualize=', LaunchConfiguration('visualize')],
     ]
 
     node_parameters = [{
@@ -165,7 +165,6 @@ def generate_launch_description():
         arguments=node_arguments,
         parameters=node_parameters,
         remappings=remappings,
-        prefix=['kitty -e gdb -ex run --args'],
     )
 
     return LaunchDescription([
