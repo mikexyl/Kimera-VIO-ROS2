@@ -34,7 +34,10 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   vio_params_->camera_params_[1].print();
 
   auto rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
-      VIO::RerunVisualizer::Params{.result_dir = "/tmp/deslam"});
+      VIO::RerunVisualizer::Params{
+          .result_dir = "/tmp/deslam",
+          .node = node_,
+      });
 
   rerun_visualizer_module_ = std::make_unique<VIO::VisualizerModule>(
       nullptr, vio_params_->parallel_run_, std::move(rerun_visualizer));

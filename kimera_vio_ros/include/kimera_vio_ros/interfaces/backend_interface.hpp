@@ -6,6 +6,7 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
+#include <vector>
 
 using Odometry = nav_msgs::msg::Odometry;
 using TransformStamped = geometry_msgs::msg::TransformStamped;
@@ -36,13 +37,23 @@ protected:
   VIO::ThreadsafeQueue<VIO::BackendOutput::Ptr> backend_output_queue_;
 
 private:
+  Odometry buildOdometryMessage(
+    const VIO::Timestamp & ts,
+    const gtsam::Pose3 & pose,
+    const gtsam::Matrix6 & pose_cov,
+    const VIO::Vector3 & linear_velocity_child,
+    const gtsam::Matrix3 & vel_cov_child,
+    const std::string & child_frame_id) const;
   void publishState(const VIO::BackendOutput::Ptr & output) const;
+  void publishCameraStates(const VIO::BackendOutput::Ptr & output) const;
   void publishTf(const VIO::BackendOutput::Ptr & output);
   void publishTimeHorizonPointCloud(const VIO::BackendOutput::Ptr & output) const;
   // void publishImuBias(const VIO::BackendOutput::Ptr& output) const;
 
 private:
   rclcpp::Publisher<Odometry>::SharedPtr odometry_pub_;
+  std::vector<rclcpp::Publisher<Odometry>::SharedPtr> camera_odometry_pubs_;
+  std::vector<std::string> camera_odometry_frame_ids_;
   rclcpp::Publisher<PointCloud2>::SharedPtr pointcloud_pub_;
 
 };
