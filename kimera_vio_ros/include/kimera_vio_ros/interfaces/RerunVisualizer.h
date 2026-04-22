@@ -8,8 +8,10 @@
 #include <kimera-vio/visualizer/Visualizer3D.h>
 #include <spdlog/fmt/fmt.h>
 
+#include <algorithm>
 #include <chrono>
 #include <future>
+#include <optional>
 
 namespace VIO {
 
@@ -98,7 +100,9 @@ public:
                   std::string gt_csv_file = "",
                   std::optional<std::string> recording_id = std::nullopt,
                   std::string result_dir = "")
-      : VIO::Visualizer3D(VIO::VisualizationType::kNone,
+      // Keep the Kimera visualizer module mesh-aware so mesher outputs are
+      // queued for the Rerun path as well.
+      : VIO::Visualizer3D(VIO::VisualizationType::kMesh2dTo3dSparse,
                           VIO::BackendType::kStereoImu),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
             "kimera_vio", recording_id, "rerun+http://127.0.0.1:9876/proxy")),
@@ -256,6 +260,8 @@ public:
       this->drawImage(map_ / odom_ / baselink_ / "tracking" / "image",
                       small_image, false);
     }
+
+    drawKimeraMesh(input);
 
     // Check if it's time to save trajectories (every 10 seconds)
     this->checkAndSaveTrajectories(odom_states_);
@@ -543,6 +549,215 @@ public:
     return trajectory;
   }
 
+  struct MeshLogData {
+    std::vector<gtsam::Point3> vertex_positions;
+    std::vector<aria::viz::MeshTriangle> triangle_indices;
+    std::vector<aria::viz::MeshTexcoord> vertex_texcoords;
+    std::vector<gtsam::Point3> vertex_normals;
+    cv::Mat texture_image;
+  };
+
+  static cv::Mat getStereoTextureImage(const VIO::FrontendOutput& frontend_output) {
+    if (!frontend_output.feature_tracks_.empty()) {
+      return frontend_output.feature_tracks_;
+    }
+    const auto& stereo_frame = frontend_output.stereo_frame_lkf_;
+    if (!stereo_frame.getLeftFrame().img_.empty()) {
+      return stereo_frame.getLeftFrame().img_;
+    }
+    if (!stereo_frame.left_img_rectified_.empty()) {
+      return stereo_frame.left_img_rectified_;
+    }
+    return cv::Mat();
+  }
+
+  static std::vector<gtsam::Point3> extractMeshVertexPositions(
+      const VIO::Mesh3D& mesh_3d) {
+    cv::Mat vertices_mesh;
+    mesh_3d.convertVerticesMeshToMat(&vertices_mesh);
+
+    std::vector<gtsam::Point3> vertex_positions;
+    vertex_positions.reserve(vertices_mesh.rows);
+    for (int row = 0; row < vertices_mesh.rows; ++row) {
+      const auto& vertex = vertices_mesh.at<cv::Point3f>(row, 0);
+      vertex_positions.emplace_back(vertex.x, vertex.y, vertex.z);
+    }
+    return vertex_positions;
+  }
+
+  static std::vector<aria::viz::MeshTriangle> extractMeshTriangleIndices(
+      const VIO::Mesh3D& mesh_3d, cv::Mat* polygons_mesh_out = nullptr) {
+    cv::Mat polygons_mesh;
+    mesh_3d.convertPolygonsMeshToMat(&polygons_mesh);
+    if (polygons_mesh_out) {
+      *polygons_mesh_out = polygons_mesh;
+    }
+
+    const size_t polygon_dimension = mesh_3d.getMeshPolygonDimension();
+    if (polygon_dimension != 3u) {
+      throw std::runtime_error("Only triangular meshes are supported in RerunVisualizer");
+    }
+    if (polygons_mesh.rows % static_cast<int>(polygon_dimension + 1u) != 0) {
+      throw std::runtime_error("Malformed mesh polygon buffer");
+    }
+
+    std::vector<aria::viz::MeshTriangle> triangles;
+    triangles.reserve(mesh_3d.getNumberOfPolygons());
+    for (size_t polygon_idx = 0; polygon_idx < mesh_3d.getNumberOfPolygons();
+         ++polygon_idx) {
+      const int offset =
+          static_cast<int>(polygon_idx * (polygon_dimension + 1u));
+      const int polygon_size = polygons_mesh.at<int>(offset, 0);
+      if (polygon_size != 3) {
+        throw std::runtime_error("Encountered a non-triangle polygon");
+      }
+
+      triangles.push_back({
+          static_cast<uint32_t>(polygons_mesh.at<int>(offset + 1, 0)),
+          static_cast<uint32_t>(polygons_mesh.at<int>(offset + 2, 0)),
+          static_cast<uint32_t>(polygons_mesh.at<int>(offset + 3, 0)),
+      });
+    }
+    return triangles;
+  }
+
+  static std::optional<MeshLogData> buildTexturedMeshLogData(
+      const VIO::VisualizerInput& input) {
+    if (!input.mesher_output_) {
+      return std::nullopt;
+    }
+
+    const cv::Mat texture_image = getStereoTextureImage(*input.frontend_output_);
+    if (texture_image.empty()) {
+      return std::nullopt;
+    }
+
+    const auto& mesh_2d = input.mesher_output_->mesh_2d_;
+    const auto& mesh_3d = input.mesher_output_->mesh_3d_;
+    const size_t polygon_dimension = mesh_2d.getMeshPolygonDimension();
+    if (polygon_dimension != 3u || mesh_2d.getNumberOfPolygons() == 0) {
+      return std::nullopt;
+    }
+
+    MeshLogData mesh_log_data;
+    mesh_log_data.texture_image = texture_image;
+    mesh_log_data.vertex_positions.reserve(mesh_2d.getNumberOfPolygons() *
+                                           polygon_dimension);
+    mesh_log_data.vertex_texcoords.reserve(mesh_2d.getNumberOfPolygons() *
+                                           polygon_dimension);
+    mesh_log_data.vertex_normals.reserve(mesh_2d.getNumberOfPolygons() *
+                                         polygon_dimension);
+    mesh_log_data.triangle_indices.reserve(mesh_2d.getNumberOfPolygons());
+
+    const float denom_x = std::max(1, texture_image.cols);
+    const float denom_y = std::max(1, texture_image.rows);
+
+    VIO::Mesh2D::Polygon polygon_2d;
+    for (size_t polygon_idx = 0; polygon_idx < mesh_2d.getNumberOfPolygons();
+         ++polygon_idx) {
+      if (!mesh_2d.getPolygon(polygon_idx, &polygon_2d) ||
+          polygon_2d.size() != polygon_dimension) {
+        continue;
+      }
+
+      VIO::Mesh3D::VertexType vertices_3d[3];
+      if (!mesh_3d.getVertex(polygon_2d[0].getLmkId(), &vertices_3d[0]) ||
+          !mesh_3d.getVertex(polygon_2d[1].getLmkId(), &vertices_3d[1]) ||
+          !mesh_3d.getVertex(polygon_2d[2].getLmkId(), &vertices_3d[2])) {
+        continue;
+      }
+
+      const uint32_t base_index =
+          static_cast<uint32_t>(mesh_log_data.vertex_positions.size());
+
+      for (size_t vertex_idx = 0; vertex_idx < polygon_dimension; ++vertex_idx) {
+        const auto& position = vertices_3d[vertex_idx].getVertexPosition();
+        const auto& normal = vertices_3d[vertex_idx].getVertexNormal();
+        const auto& pixel = polygon_2d[vertex_idx].getVertexPosition();
+
+        mesh_log_data.vertex_positions.emplace_back(position.x, position.y,
+                                                    position.z);
+        mesh_log_data.vertex_normals.emplace_back(normal.x, normal.y, normal.z);
+        mesh_log_data.vertex_texcoords.push_back({
+            std::clamp(pixel.x / denom_x, 0.0f, 1.0f),
+            std::clamp(pixel.y / denom_y, 0.0f, 1.0f),
+        });
+      }
+
+      // Match the legacy RViz publisher winding order.
+      mesh_log_data.triangle_indices.push_back(
+          {base_index + 2u, base_index + 1u, base_index});
+    }
+
+    if (mesh_log_data.triangle_indices.empty()) {
+      return std::nullopt;
+    }
+    return mesh_log_data;
+  }
+
+  static std::optional<MeshLogData> buildGeometryMeshLogData(
+      const VIO::VisualizerInput& input) {
+    if (!input.mesher_output_) {
+      return std::nullopt;
+    }
+
+    const auto& mesh_3d = input.mesher_output_->mesh_3d_;
+    if (mesh_3d.getNumberOfPolygons() == 0 ||
+        mesh_3d.getNumberOfUniqueVertices() == 0) {
+      return std::nullopt;
+    }
+
+    MeshLogData mesh_log_data;
+    mesh_log_data.vertex_positions = extractMeshVertexPositions(mesh_3d);
+    mesh_log_data.triangle_indices = extractMeshTriangleIndices(mesh_3d);
+    return mesh_log_data;
+  }
+
+  void drawKimeraMesh(const VIO::VisualizerInput& input) {
+    const auto mesh_entity = map_ / "mesh";
+    const auto textured_mesh = buildTexturedMeshLogData(input);
+    if (textured_mesh) {
+      if (!logged_textured_mesh_once_) {
+        logged_textured_mesh_once_ = true;
+        LOG(INFO) << "Logging textured Kimera mesh to Rerun with "
+                  << textured_mesh->vertex_positions.size()
+                  << " vertices and "
+                  << textured_mesh->triangle_indices.size() << " triangles.";
+      }
+      this->drawTexturedMesh(mesh_entity,
+                             textured_mesh->vertex_positions,
+                             textured_mesh->triangle_indices,
+                             textured_mesh->vertex_texcoords,
+                             textured_mesh->texture_image,
+                             {},
+                             textured_mesh->vertex_normals,
+                             false);
+      return;
+    }
+
+    if (logged_textured_mesh_once_) {
+      return;
+    }
+
+    const auto geometry_mesh = buildGeometryMeshLogData(input);
+    if (!geometry_mesh) {
+      return;
+    }
+
+    if (!logged_geometry_mesh_once_) {
+      logged_geometry_mesh_once_ = true;
+      LOG(INFO) << "Logging geometry-only Kimera mesh to Rerun with "
+                << geometry_mesh->vertex_positions.size() << " vertices and "
+                << geometry_mesh->triangle_indices.size() << " triangles.";
+    }
+    this->drawMesh(mesh_entity,
+                   geometry_mesh->vertex_positions,
+                   geometry_mesh->triangle_indices,
+                   {},
+                   {},
+                   false);
+  }
+
 private:
   std::filesystem::path baselink_;
   std::filesystem::path map_;
@@ -564,6 +779,8 @@ private:
   FrameIDTimestampMap timestamp_map_;
 
   std::optional<std::pair<FrameId, FrameId>> last_odom_pair_{std::nullopt};
+  bool logged_textured_mesh_once_{false};
+  bool logged_geometry_mesh_once_{false};
 
   std::mutex rerun_mutex_;
 

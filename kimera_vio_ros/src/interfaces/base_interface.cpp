@@ -47,6 +47,9 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   vio_pipeline_->registerFrontendOutputCallback(
       std::bind(&VIO::VisualizerModule::fillFrontendQueue,
                 std::ref(*rerun_visualizer_module_), std::placeholders::_1));
+  vio_pipeline_->registerMesherOutputCallback(
+      std::bind(&VIO::VisualizerModule::fillMesherQueue,
+                std::ref(*rerun_visualizer_module_), std::placeholders::_1));
 }
 
 BaseInterface::~BaseInterface() {
