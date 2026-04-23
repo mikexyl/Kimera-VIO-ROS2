@@ -1,5 +1,5 @@
 #!/bin/bash
-# RegularVioBackend parameters.
+# RegularVioBackEnd parameters.
 --min_num_of_observations=2
 --max_parallax=150
 --min_num_obs_for_proj_factor=4

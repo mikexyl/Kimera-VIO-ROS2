@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -39,6 +39,13 @@ def generate_launch_description():
         default_value='0',
         description='Enable the loop-closure detector if true.'
     )
+    workspace_root_arg = DeclareLaunchArgument(
+        'workspace_root',
+        default_value=EnvironmentVariable(
+            'ROS_WS', default_value='/home/mikexyl/workspaces/kimera_ros2_ws'
+        ),
+        description='Workspace root used to locate non-ament Kimera assets.'
+    )
     params_folder_arg = DeclareLaunchArgument(
         'params_folder',
         default_value=PathJoinSubstitution([
@@ -50,7 +57,15 @@ def generate_launch_description():
     )
     path_to_vocab_arg = DeclareLaunchArgument(
         'path_to_vocab',
-        default_value='/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/vocabulary/ORBvoc.yml',
+        default_value=PathJoinSubstitution([
+            LaunchConfiguration('workspace_root'),
+            'src',
+            'Kimera-VIO-ROS2',
+            'MIT-SPARK',
+            'Kimera-VIO',
+            'vocabulary',
+            'ORBvoc.yml',
+        ]),
         description='Absolute path to the ORB vocabulary file.'
     )
     topic_left_image_arg = DeclareLaunchArgument(
@@ -174,6 +189,7 @@ def generate_launch_description():
         log_output_arg,
         log_output_path_arg,
         use_lcd_arg,
+        workspace_root_arg,
         params_folder_arg,
         path_to_vocab_arg,
         topic_left_image_arg,

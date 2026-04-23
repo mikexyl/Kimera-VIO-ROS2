@@ -29,6 +29,16 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   params_folder_ = node_->declare_parameter("params_folder", "");
   CHECK(!params_folder_.empty());
   vio_params_ = std::make_shared<VIO::VioParams>(params_folder_);
+  if (vio_params_->backend_params_ &&
+      vio_params_->backend_params_->autoInitialize_ == 0 &&
+      vio_params_->backend_params_->initial_ground_truth_state_.equals(
+          VIO::VioNavState())) {
+    RCLCPP_WARN(
+        node_->get_logger(),
+        "Backend requested ground-truth initialization but no initial "
+        "ground-truth state was loaded; falling back to IMU auto-initialization.");
+    vio_params_->backend_params_->autoInitialize_ = 1;
+  }
 
   vio_params_->camera_params_[0].print();
   vio_params_->camera_params_[1].print();

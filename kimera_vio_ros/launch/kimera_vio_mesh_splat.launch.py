@@ -104,7 +104,19 @@ def generate_launch_description():
     )
     path_to_vocab_arg = DeclareLaunchArgument(
         "path_to_vocab",
-        default_value="/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/vocabulary/ORBvoc.yml",
+        default_value=PathJoinSubstitution(
+            [
+                EnvironmentVariable(
+                    "ROS_WS", default_value="/home/mikexyl/workspaces/kimera_ros2_ws"
+                ),
+                "src",
+                "Kimera-VIO-ROS2",
+                "MIT-SPARK",
+                "Kimera-VIO",
+                "vocabulary",
+                "ORBvoc.yml",
+            ]
+        ),
         description="Absolute path to the ORB vocabulary file.",
     )
     topic_left_image_arg = DeclareLaunchArgument(
