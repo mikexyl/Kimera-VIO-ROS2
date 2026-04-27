@@ -39,6 +39,8 @@
   <!-- Visualize pipeline output in OpenCV. -->
   <!-- Note that this is duplicated from the flags file -->
   <arg name="visualize"    default="true" />
+  <arg name="viz_type" default="0" />
+  <arg name="publish_mesher_input" default="true" />
   <!-- <arg name="rectified"    default="true" /> -->
 
   <!-- Launch main node  -->
@@ -56,11 +58,13 @@
         --v=$(var verbosity) \
         --log_output=$(var log_output) \
         --output_path=$(var log_output_path) \
-        --visualize=$(var visualize)">
+        --visualize=$(var visualize) \
+        --viz_type=$(var viz_type)">
     <param name="params_folder"  value="$(var params_folder)"/>
 
     <param name="use_sim_time"      value="$(var use_sim_time)"/>
     <param name="use_lcd"           value="$(var use_lcd)"/>
+    <param name="publish_mesher_input" value="$(var publish_mesher_input)"/>
 
     <!-- Frame IDs for Odometry -->
     <param name="frame_id">
@@ -88,6 +92,7 @@
     <remap from="frontend_stats"          to="frontend_stats"/>
     <remap from="debug_mesh_img"          to="debug_mesh_img"/>
     <remap from="time_horizon_pointcloud" to="time_horizon_pointcloud"/>
+    <remap from="mesher_input"            to="mesher_input"/>
 
     <!-- Resiliency Thresholds: TODO(Sandro) document -->
     <param name="velocity_det_threshold"  value="0.1"/>

@@ -123,6 +123,16 @@ def generate_launch_description():
         default_value='true',
         description='Enable OpenCV visualizations if true.'
     )
+    viz_type_arg = DeclareLaunchArgument(
+        'viz_type',
+        default_value='0',
+        description='Kimera visualization type. Use 1 when standalone mesher owns mesh output.'
+    )
+    publish_mesher_input_arg = DeclareLaunchArgument(
+        'publish_mesher_input',
+        default_value='true',
+        description='Publish generic projective_mesher_msgs/MesherInput keyframes.'
+    )
 
     node_arguments = [
         ['--use_lcd=', LaunchConfiguration('use_lcd')],
@@ -138,6 +148,7 @@ def generate_launch_description():
         ['--log_output=', LaunchConfiguration('log_output')],
         '--output_path', LaunchConfiguration('log_output_path'),
         ['--visualize=', LaunchConfiguration('visualize')],
+        ['--viz_type=', LaunchConfiguration('viz_type')],
     ]
 
     node_parameters = [{
@@ -152,6 +163,7 @@ def generate_launch_description():
         'position_det_threshold': 0.3,
         'stereo_ransac_threshold': 20,
         'mono_ransac_threshold': 30,
+        'publish_mesher_input': LaunchConfiguration('publish_mesher_input'),
     }]
 
     remappings = [
@@ -169,6 +181,7 @@ def generate_launch_description():
         ('frontend_stats', 'frontend_stats'),
         ('debug_mesh_img', 'debug_mesh_img'),
         ('time_horizon_pointcloud', 'time_horizon_pointcloud'),
+        ('mesher_input', 'mesher_input'),
     ]
 
     kimera_vio_node = Node(
@@ -203,5 +216,7 @@ def generate_launch_description():
         frame_id_world_arg,
         verbosity_arg,
         visualize_arg,
+        viz_type_arg,
+        publish_mesher_input_arg,
         kimera_vio_node,
     ])

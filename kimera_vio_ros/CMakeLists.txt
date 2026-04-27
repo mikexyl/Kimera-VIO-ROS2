@@ -28,6 +28,7 @@ find_package(message_filters REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(pcl_msgs REQUIRED)
+find_package(projective_mesher_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -51,6 +52,7 @@ set(dependencies
   nav_msgs
   pcl_conversions
   pcl_msgs
+  projective_mesher_msgs
   rclcpp
   rclcpp_components
   pose_graph_tools_msgs
