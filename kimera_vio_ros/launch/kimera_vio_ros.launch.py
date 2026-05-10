@@ -133,6 +133,16 @@ def generate_launch_description():
         default_value='true',
         description='Publish generic projective_mesher_msgs/MesherInput keyframes.'
     )
+    rerun_recording_id_arg = DeclareLaunchArgument(
+        'rerun_recording_id',
+        default_value='',
+        description='Optional Rerun recording id used by the Kimera visualizer.'
+    )
+    rerun_result_dir_arg = DeclareLaunchArgument(
+        'rerun_result_dir',
+        default_value='',
+        description='Optional directory for Kimera Rerun side outputs. Empty disables file output.'
+    )
 
     node_arguments = [
         ['--use_lcd=', LaunchConfiguration('use_lcd')],
@@ -164,6 +174,8 @@ def generate_launch_description():
         'stereo_ransac_threshold': 20,
         'mono_ransac_threshold': 30,
         'publish_mesher_input': LaunchConfiguration('publish_mesher_input'),
+        'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
+        'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
     }]
 
     remappings = [
@@ -218,5 +230,7 @@ def generate_launch_description():
         visualize_arg,
         viz_type_arg,
         publish_mesher_input_arg,
+        rerun_recording_id_arg,
+        rerun_result_dir_arg,
         kimera_vio_node,
     ])

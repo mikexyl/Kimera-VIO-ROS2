@@ -1,11 +1,15 @@
 #include "kimera_vio_ros/interfaces/backend_interface.hpp"
 #include "kimera_vio_ros/utils/geometry.hpp"
 
+#include <chrono>
+
 namespace kimera_vio_ros {
 namespace interfaces {
 
 BackendInterface::BackendInterface(rclcpp::Node::SharedPtr &node)
     : BaseInterface(node), backend_output_queue_("Backend output") {
+  callback_group_backend_ =
+      node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   rclcpp::QoS qos(rclcpp::KeepLast(10));
   odometry_pub_ = node_->create_publisher<Odometry>("odometry", qos);
   camera_odometry_pubs_.reserve(vio_params_->camera_params_.size());
@@ -27,17 +31,29 @@ BackendInterface::BackendInterface(rclcpp::Node::SharedPtr &node)
   }
   pointcloud_pub_ =
       node_->create_publisher<PointCloud2>("time_horizon_pointcloud", qos);
+  backend_timer_ = node_->create_wall_timer(
+      std::chrono::milliseconds(1),
+      std::bind(&BackendInterface::drainBackendQueue, this),
+      callback_group_backend_);
 }
 
 BackendInterface::~BackendInterface() { backend_output_queue_.shutdown(); }
 
+void BackendInterface::drainBackendQueue() {
+  VIO::BackendOutput::Ptr output;
+  while (backend_output_queue_.pop(output)) {
+    publishBackendOutput(output);
+  }
+}
+
 void BackendInterface::publishBackendOutput(
     const VIO::BackendOutput::Ptr &output) {
   CHECK(output);
+  RCLCPP_INFO_ONCE(
+      node_->get_logger(),
+      "Publishing first backend output to ROS odometry/TF topics.");
   publishTf(output);
-  if (odometry_pub_->get_subscription_count() > 0) {
-    publishState(output);
-  }
+  publishState(output);
   publishCameraStates(output);
   // if (imu_bias_pub_.getNumSubscribers() > 0) {
   //   publishImuBias(output);

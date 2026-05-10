@@ -25,7 +25,7 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 
-namespace projective_mesher_ros {
+namespace mesh_splat {
 namespace {
 
 using LandmarkObservation = projective_mesher_msgs::msg::LandmarkObservation;
@@ -237,6 +237,10 @@ class ProjectiveMesherNode : public rclcpp::Node {
     }
 
     logMeshToRerun(mesh_data, *msg);
+    RCLCPP_INFO_THROTTLE(
+        get_logger(), *get_clock(), 5000,
+        "Published projective mesh with %zu vertices and %zu triangles from %zu valid observations.",
+        mesh_data.vertices.size(), mesh_data.triangles.size(), observations.size());
   }
 
   std::vector<Observation> collectValidObservations(const MesherInput& msg) const {
@@ -551,12 +555,12 @@ class ProjectiveMesherNode : public rclcpp::Node {
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr texture_pub_;
 };
 
-}  // namespace projective_mesher_ros
+}  // namespace mesh_splat
 
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::executors::MultiThreadedExecutor executor;
-  auto node = std::make_shared<projective_mesher_ros::ProjectiveMesherNode>();
+  auto node = std::make_shared<mesh_splat::ProjectiveMesherNode>();
   executor.add_node(node);
   executor.spin();
   rclcpp::shutdown();

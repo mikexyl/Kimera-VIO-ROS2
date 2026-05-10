@@ -32,6 +32,8 @@
   <depend>aria_viz</depend>
   <depend>pose_graph_tools_msgs</depend>
 
+  <exec_depend>mesh_splat</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 

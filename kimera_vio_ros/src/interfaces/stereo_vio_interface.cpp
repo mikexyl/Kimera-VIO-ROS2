@@ -240,12 +240,6 @@ void StereoVioInterface::publishMesherInput(
       continue;
     }
 
-    const auto world_iter =
-      backend_output->landmarks_with_id_map_.find(landmark_id);
-    if (world_iter == backend_output->landmarks_with_id_map_.end()) {
-      continue;
-    }
-
     projective_mesher_msgs::msg::LandmarkObservation observation;
     observation.id = static_cast<int64_t>(landmark_id);
 
@@ -253,15 +247,25 @@ void StereoVioInterface::publishMesherInput(
     observation.keypoint.y = keypoints.at(idx).y;
     observation.keypoint.z = 0.0;
 
-    observation.world_point = pointToMsg(world_iter->second);
+    const auto status =
+      has_status ? keypoint_status.at(idx) : VIO::VALID;
+    const auto world_iter =
+      backend_output->landmarks_with_id_map_.find(landmark_id);
+    if (world_iter != backend_output->landmarks_with_id_map_.end()) {
+      observation.world_point = pointToMsg(world_iter->second);
+    } else if (status == VIO::VALID && has_camera_points) {
+      const gtsam::Point3 world_point =
+        left_camera_pose.transformFrom(gtsam::Point3(camera_points.at(idx)));
+      observation.world_point = pointToMsg(world_point);
+    } else {
+      continue;
+    }
 
     if (has_camera_points) {
       observation.has_camera_point = true;
       observation.camera_point = pointToMsg(camera_points.at(idx));
     }
 
-    const auto status =
-      has_status ? keypoint_status.at(idx) : VIO::VALID;
     observation.status = static_cast<uint8_t>(status);
     msg.observations.push_back(std::move(observation));
   }

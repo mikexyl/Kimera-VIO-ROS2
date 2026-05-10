@@ -37,6 +37,7 @@ protected:
   VIO::ThreadsafeQueue<VIO::BackendOutput::Ptr> backend_output_queue_;
 
 private:
+  void drainBackendQueue();
   Odometry buildOdometryMessage(
     const VIO::Timestamp & ts,
     const gtsam::Pose3 & pose,
@@ -51,6 +52,8 @@ private:
   // void publishImuBias(const VIO::BackendOutput::Ptr& output) const;
 
 private:
+  rclcpp::CallbackGroup::SharedPtr callback_group_backend_;
+  rclcpp::TimerBase::SharedPtr backend_timer_;
   rclcpp::Publisher<Odometry>::SharedPtr odometry_pub_;
   std::vector<rclcpp::Publisher<Odometry>::SharedPtr> camera_odometry_pubs_;
   std::vector<std::string> camera_odometry_frame_ids_;

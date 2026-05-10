@@ -9,7 +9,7 @@
 			"USERNAME": "${localEnv:USER}",
 		}
 	},
-	"workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/src/,type=bind",
+	"workspaceMount": "source=${localWorkspaceFolder}/../,target=/workspaces/src,type=bind",
 	"workspaceFolder": "/workspaces/src/",
 	"features": {
 		"ghcr.io/devcontainers/features/python:1": {},

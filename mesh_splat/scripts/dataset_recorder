@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+from mesh_splat.dataset_recorder import main
+
+
+if __name__ == "__main__":
+    main()

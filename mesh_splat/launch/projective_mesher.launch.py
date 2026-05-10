@@ -40,6 +40,11 @@ def generate_launch_description():
         default_value="0.2",
         description="Reject elongated triangles with min_side/max_side below this.",
     )
+    min_observations_arg = DeclareLaunchArgument(
+        "min_observations",
+        default_value="3",
+        description="Minimum valid observations required to build a mesh.",
+    )
     enable_rerun_arg = DeclareLaunchArgument(
         "enable_rerun",
         default_value="false",
@@ -65,9 +70,19 @@ def generate_launch_description():
         default_value="map/projective_mesher/mesh",
         description="Rerun entity path for the generated mesh.",
     )
+    rerun_camera_entity_path_arg = DeclareLaunchArgument(
+        "rerun_camera_entity_path",
+        default_value="map/projective_mesher/camera",
+        description="Rerun entity path for the input camera pose.",
+    )
+    log_rerun_camera_pose_arg = DeclareLaunchArgument(
+        "log_rerun_camera_pose",
+        default_value="true",
+        description="Log the input camera pose to Rerun.",
+    )
 
     mesher_node = Node(
-        package="projective_mesher_ros",
+        package="mesh_splat",
         executable="projective_mesher_node",
         name="projective_mesher",
         output="screen",
@@ -79,11 +94,16 @@ def generate_launch_description():
                 "min_ratio_btw_largest_smallest_side": LaunchConfiguration(
                     "min_ratio_btw_largest_smallest_side"
                 ),
+                "min_observations": LaunchConfiguration("min_observations"),
                 "enable_rerun": LaunchConfiguration("enable_rerun"),
                 "rerun_host": LaunchConfiguration("rerun_host"),
                 "rerun_app_id": LaunchConfiguration("rerun_app_id"),
                 "rerun_recording_id": LaunchConfiguration("rerun_recording_id"),
                 "rerun_entity_path": LaunchConfiguration("rerun_entity_path"),
+                "rerun_camera_entity_path": LaunchConfiguration(
+                    "rerun_camera_entity_path"
+                ),
+                "log_rerun_camera_pose": LaunchConfiguration("log_rerun_camera_pose"),
             }
         ],
         remappings=[
@@ -102,11 +122,14 @@ def generate_launch_description():
             mesh_frame_id_arg,
             max_triangle_side_arg,
             min_side_ratio_arg,
+            min_observations_arg,
             enable_rerun_arg,
             rerun_host_arg,
             rerun_app_id_arg,
             rerun_recording_id_arg,
             rerun_entity_path_arg,
+            rerun_camera_entity_path_arg,
+            log_rerun_camera_pose_arg,
             mesher_node,
         ]
     )

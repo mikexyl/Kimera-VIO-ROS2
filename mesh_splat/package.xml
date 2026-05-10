@@ -2,17 +2,22 @@
 <package format="3">
   <name>mesh_splat</name>
   <version>0.0.1</version>
-  <description>ROS2 Python textured mesh subscriber for Rerun visualization.</description>
+  <description>ROS2 mesh tools for Rerun visualization and projective meshing.</description>
 
   <maintainer email="mikexyl@example.com">Mike Liu</maintainer>
   <license>BSD</license>
 
-  <buildtool_depend>ament_python</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>ament_cmake_python</build_depend>
 
+  <depend>aria_viz</depend>
+  <depend>libopencv-dev</depend>
   <depend>launch</depend>
   <depend>launch_ros</depend>
   <depend>nav_msgs</depend>
   <depend>pcl_msgs</depend>
+  <depend>projective_mesher_msgs</depend>
+  <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>sensor_msgs_py</depend>
@@ -24,6 +29,6 @@
   <test_depend>ament_lint_common</test_depend>
 
   <export>
-    <build_type>ament_python</build_type>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

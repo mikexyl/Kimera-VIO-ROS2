@@ -1,4 +1,6 @@
 #include <chrono>
+#include <optional>
+#include <string>
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
@@ -43,9 +45,19 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   vio_params_->camera_params_[0].print();
   vio_params_->camera_params_[1].print();
 
+  const auto rerun_recording_id_param =
+      node_->declare_parameter<std::string>("rerun_recording_id", "");
+  std::optional<std::string> rerun_recording_id = std::nullopt;
+  if (!rerun_recording_id_param.empty()) {
+    rerun_recording_id = rerun_recording_id_param;
+  }
+  const auto rerun_result_dir =
+      node_->declare_parameter<std::string>("rerun_result_dir", "");
+
   auto rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
       VIO::RerunVisualizer::Params{
-          .result_dir = "/tmp/deslam",
+          .recording_id = rerun_recording_id,
+          .result_dir = rerun_result_dir,
           .node = node_,
       });
 
