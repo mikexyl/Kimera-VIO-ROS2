@@ -63,6 +63,8 @@ StereoInterface::StereoInterface(rclcpp::Node::SharedPtr &node)
 
   bool use_camera_info_;
   use_camera_info_ = node_->declare_parameter("use_camera_info", true);
+  force_same_image_timestamp_ =
+      node_->declare_parameter("force_same_image_timestamp", true);
 
   CHECK(not use_camera_info_) << "disabled";
 
@@ -115,6 +117,8 @@ void StereoInterface::stereo_image_cb(const Image::SharedPtr left_msg,
 
     const VIO::Timestamp &timestamp_left = left_stamp.nanoseconds();
     const VIO::Timestamp &timestamp_right = right_stamp.nanoseconds();
+    const VIO::Timestamp &timestamp_right_frame =
+        force_same_image_timestamp_ ? timestamp_left : timestamp_right;
 
     // CHECK(left_frame_callback_)
     // << "Did you forget to register the left frame callback?";
@@ -130,7 +134,7 @@ void StereoInterface::stereo_image_cb(const Image::SharedPtr left_msg,
     left_frame_callback_(std::make_unique<VIO::Frame>(
         frame_count_, timestamp_left, left_cam_info, left_img));
     right_frame_callback_(std::make_unique<VIO::Frame>(
-        frame_count_, timestamp_right, right_cam_info, right_img));
+        frame_count_, timestamp_right_frame, right_cam_info, right_img));
     // LOG_EVERY_N(INFO, 30) << "Done: KimeraVioNode::stereo_image_cb";
     frame_count_++;
   }

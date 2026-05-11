@@ -1,6 +1,8 @@
 #include "kimera_vio_ros/interfaces/image_interface.hpp"
 #include "kimera_vio_ros/utils/geometry.hpp"
 
+#include "sensor_msgs/image_encodings.hpp"
+
 namespace kimera_vio_ros {
 namespace interfaces {
 
@@ -74,23 +76,41 @@ void ImageInterface::msgCamInfoToCameraParams(
 
 const cv::Mat ImageInterface::readRosImage(
     const sensor_msgs::msg::Image::ConstSharedPtr &img_msg) {
-  cv_bridge::CvImageConstPtr cv_constptr;
-  cv_constptr = cv_bridge::toCvShare(img_msg);
-
-  cv::Mat bgr_image;
-
-  if (img_msg->encoding == sensor_msgs::image_encodings::BGR8) {
-    // LOG(WARNING) << "Converting image...";
-    // cv::cvtColor(cv_constptr->image, cv_constptr->image, cv::COLOR_BGR2GRAY);
-    bgr_image = cv_constptr->image;
-  } else {
-    CHECK_EQ(cv_constptr->encoding, sensor_msgs::image_encodings::MONO8)
-        << "Expected image with MONO8 or BGR8 encoding.";
-    // convert to bgr
-    cv::cvtColor(cv_constptr->image, bgr_image, cv::COLOR_GRAY2BGR);
+  CHECK(img_msg);
+  cv_bridge::CvImagePtr cv_ptr;
+  try {
+    cv_ptr = cv_bridge::toCvCopy(img_msg);
+  } catch (cv_bridge::Exception &exception) {
+    RCLCPP_FATAL(node_->get_logger(),
+                 "cv_bridge exception while reading image: %s",
+                 exception.what());
+    rclcpp::shutdown();
+    return cv::Mat();
   }
 
-  return bgr_image;
+  CHECK(cv_ptr);
+  const cv::Mat img_const = cv_ptr->image;
+  cv::Mat converted_img;
+  if (img_msg->encoding == sensor_msgs::image_encodings::BGR8) {
+    return img_const;
+  } else if (img_msg->encoding == sensor_msgs::image_encodings::RGB8) {
+    cv::cvtColor(img_const, converted_img, cv::COLOR_RGB2BGR);
+  } else if (img_msg->encoding == sensor_msgs::image_encodings::BGRA8) {
+    cv::cvtColor(img_const, converted_img, cv::COLOR_BGRA2BGR);
+  } else if (img_msg->encoding == sensor_msgs::image_encodings::MONO16) {
+    cv::Mat mono8;
+    img_const.convertTo(mono8, CV_8U, 1.0 / 256.0);
+    cv::cvtColor(mono8, converted_img, cv::COLOR_GRAY2BGR);
+  } else {
+    CHECK(cv_ptr->encoding == sensor_msgs::image_encodings::MONO8 ||
+          cv_ptr->encoding == sensor_msgs::image_encodings::TYPE_8UC1)
+        << "Expected image with MONO8, 8UC1, BGR8, RGB8, BGRA8, or MONO16 "
+           "encoding. Encoding: "
+        << img_msg->encoding;
+    cv::cvtColor(img_const, converted_img, cv::COLOR_GRAY2BGR);
+  }
+
+  return converted_img;
 }
 
 } // namespace interfaces

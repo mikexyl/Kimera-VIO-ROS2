@@ -27,7 +27,9 @@ StereoVio::~StereoVio()
 
 void StereoVio::init()
 {
-  rclcpp::Node::SharedPtr node = std::shared_ptr<rclcpp::Node>(this);
+  // The component is already owned by the executor; the interfaces only need a
+  // node handle and must not take ownership of this.
+  rclcpp::Node::SharedPtr node(this, [](rclcpp::Node *) {});
   vio_node_ = std::make_unique<interfaces::StereoVioInterface>(node);
 }
 

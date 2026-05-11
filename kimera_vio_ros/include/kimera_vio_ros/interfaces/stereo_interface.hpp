@@ -40,6 +40,7 @@ private:
   std::shared_ptr<message_filters::Subscriber<CameraInfo>> left_info_sub_;
   std::shared_ptr<message_filters::Subscriber<CameraInfo>> right_info_sub_;
   bool camera_info_received_ = false;
+  bool force_same_image_timestamp_ = true;
 
   VIO::FrameId frame_count_;
   rclcpp::Time last_stereo_timestamp_;
