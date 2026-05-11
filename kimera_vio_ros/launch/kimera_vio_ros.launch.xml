@@ -2,6 +2,8 @@
   <arg name="dataset_name" default="Euroc"/>
   <arg name="parallel" default="false" />
   <arg name="use_sim_time" default="true"/>
+  <arg name="robot_id" default="0"/>
+  <arg name="robot_name" default="na"/>
 
   <!-- If true, SparkVio will log output of all modules to the
   'log_output_path' location. -->
@@ -12,6 +14,9 @@
 
   <!-- If true, SparkVio will enable the LoopClosureDetector module. -->
   <arg name="use_lcd" default="false"/>
+  <arg name="bow_batch_size" default="5"/>
+  <arg name="bow_skip_num" default="1"/>
+  <arg name="publish_vlc_frames" default="true"/>
 
   <arg name="params_folder" default="$(find-pkg-share kimera_vio)/params/$(var dataset_name)"/>
 
@@ -31,6 +36,7 @@
 
   <!-- Frame IDs -->
   <arg name="frame_id.base_link" default="base_link"/>
+  <arg name="frame_id.odom"      default="odom"/>
   <arg name="frame_id.map"       default="map"/>
   <arg name="frame_id.world"     default="world"/>
 
@@ -39,8 +45,8 @@
   <!-- Visualize pipeline output in OpenCV. -->
   <!-- Note that this is duplicated from the flags file -->
   <arg name="visualize"    default="true" />
-  <arg name="viz_type" default="0" />
-  <arg name="publish_mesher_input" default="true" />
+  <arg name="rerun_recording_id" default=""/>
+  <arg name="rerun_result_dir" default=""/>
   <!-- <arg name="rectified"    default="true" /> -->
 
   <!-- Launch main node  -->
@@ -58,17 +64,23 @@
         --v=$(var verbosity) \
         --log_output=$(var log_output) \
         --output_path=$(var log_output_path) \
-        --visualize=$(var visualize) \
-        --viz_type=$(var viz_type)">
+        --visualize=$(var visualize)">
     <param name="params_folder"  value="$(var params_folder)"/>
 
     <param name="use_sim_time"      value="$(var use_sim_time)"/>
     <param name="use_lcd"           value="$(var use_lcd)"/>
-    <param name="publish_mesher_input" value="$(var publish_mesher_input)"/>
+    <param name="robot_id"          value="$(var robot_id)"/>
+    <param name="robot_name"        value="$(var robot_name)"/>
+    <param name="bow_batch_size"    value="$(var bow_batch_size)"/>
+    <param name="bow_skip_num"      value="$(var bow_skip_num)"/>
+    <param name="publish_vlc_frames" value="$(var publish_vlc_frames)"/>
+    <param name="rerun_recording_id" value="$(var rerun_recording_id)"/>
+    <param name="rerun_result_dir" value="$(var rerun_result_dir)"/>
 
     <!-- Frame IDs for Odometry -->
     <param name="frame_id">
         <param name="base_link" value="$(var frame_id.base_link)"/>
+        <param name="odom"      value="$(var frame_id.odom)"/>
         <param name="map"       value="$(var frame_id.map)"/>
         <param name="world"     value="$(var frame_id.world)"/>
     </param>
@@ -88,11 +100,15 @@
     <remap from="imu_bias"                to="imu_bias"/>
     <remap from="optimized_trajectory"    to="optimized_trajectory"/>
     <remap from="pose_graph"              to="pose_graph"/>
+    <remap from="pose_graph_incremental"  to="pose_graph_incremental"/>
+    <remap from="optimized_odometry"      to="optimized_odometry"/>
+    <remap from="bow_query"               to="bow_query"/>
+    <remap from="vlc_frames"              to="vlc_frames"/>
+    <remap from="vlc_frame_query"         to="vlc_frame_query"/>
     <remap from="mesh"                    to="mesh"/>
     <remap from="frontend_stats"          to="frontend_stats"/>
     <remap from="debug_mesh_img"          to="debug_mesh_img"/>
     <remap from="time_horizon_pointcloud" to="time_horizon_pointcloud"/>
-    <remap from="mesher_input"            to="mesher_input"/>
 
     <!-- Resiliency Thresholds: TODO(Sandro) document -->
     <param name="velocity_det_threshold"  value="0.1"/>

@@ -1,6 +1,6 @@
 #!/bin/bash
 --log_output=false
---backend_type=1
+--backend_type=0
 --regular_vio_backend_modality=0
 --deterministic_random_number_generator=true
 
@@ -27,12 +27,12 @@
 # 1: pointcloud
 # 2: none
 --viz_type=1
---min_num_obs_for_mesher_points=3
+--min_num_obs_for_mesher_points=25
 --extract_planes_from_the_scene=false
 
-# For displaying/saving frontend images:
+# For displaying/saving Frontend images:
 --visualize_frontend_images=false
 --save_frontend_images=false
---log_feature_tracks=true
+--log_feature_tracks=false
 --log_mono_tracking_images=false
 --log_stereo_matching_images=false

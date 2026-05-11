@@ -1,26 +1,15 @@
 #pragma once
 
 #include <aria_viz/visualizer_rerun.h>
-#include <cv_bridge/cv_bridge.h>
 #include <glog/logging.h>
 #include <gtsam/slam/dataset.h>
 #include <kimera-vio/loopclosure/LoopClosureDetector-definitions.h>
 #include <kimera-vio/loopclosure/LoopClosureDetector.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
-#include <pcl_msgs/msg/polygon_mesh.hpp>
-#include <pcl_msgs/msg/vertices.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
-#include <sensor_msgs/msg/point_field.hpp>
-#include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <spdlog/fmt/fmt.h>
 
-#include <algorithm>
 #include <chrono>
 #include <future>
-#include <optional>
-#include <set>
 
 namespace VIO {
 
@@ -37,8 +26,6 @@ public:
   void send(google::LogSeverity severity, const char *full_filename,
             const char *base_filename, int line, const struct tm *tm_time,
             const char *message, size_t message_len) override {
-    (void)full_filename;
-    (void)tm_time;
     // Build message string and forward to custom handler
     std::string msg(message, message_len);
     handler_(severity, base_filename, line, msg.c_str());
@@ -87,8 +74,6 @@ private:
 
 class RerunVisualizer : public Visualizer3D, aria::viz::VisualizerRerun {
 public:
-  static constexpr char kPoseSymbolChar = 'x';
-
   struct Params {
     std::string base_link_frame_id = "baselink";
     std::string odom_frame_id = "odom";
@@ -96,40 +81,26 @@ public:
     std::string gt_csv_file = "";
     std::optional<std::string> recording_id = std::nullopt;
     std::string result_dir = "";
-    rclcpp::Node::SharedPtr node = nullptr;
   };
 
   RerunVisualizer(const Params &params)
       : RerunVisualizer(params.base_link_frame_id, params.odom_frame_id,
                         params.map_frame_id, params.gt_csv_file,
-                        params.recording_id, params.result_dir, params.node) {}
+                        params.recording_id, params.result_dir) {}
 
   RerunVisualizer(std::string base_link_frame_id = "baselink",
                   std::string odom_frame_id = "odom",
                   std::string map_frame_id = "map",
                   std::string gt_csv_file = "",
                   std::optional<std::string> recording_id = std::nullopt,
-                  std::string result_dir = "",
-                  rclcpp::Node::SharedPtr node = nullptr)
-      // Keep the Kimera visualizer module mesh-aware so mesher outputs are
-      // queued for the Rerun path as well.
-        : VIO::Visualizer3D(VIO::VisualizationType::kMesh2dTo3dSparse,
-                          VIO::BackendType::kStereoImu),
+                  std::string result_dir = "")
+      : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
-            "kimera_vio", recording_id, "rerun+http://127.0.0.1:9876/proxy")),
+            "kimera_vio", recording_id, "rerun+http://172.17.0.1:9876/proxy")),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
-        node_(std::move(node)),
         result_dir_(result_dir) {
-    if (node_) {
-      auto mesh_qos = rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local();
-      mesh_pub_ =
-          node_->create_publisher<pcl_msgs::msg::PolygonMesh>("mesh", mesh_qos);
-      mesh_texture_pub_ = node_->create_publisher<sensor_msgs::msg::Image>(
-          "debug_mesh_img", mesh_qos);
-    }
-
     // draw the origin frame for visualization
-    this->drawTf(map_, Pose3(), 0.3, true);
+    this->drawTf(map_, Pose3::Identity(), 0.3, true);
 
     if (not g_custom_sink) {
       AddGlogCustomSink([this](google::LogSeverity severity,
@@ -216,8 +187,6 @@ public:
 
   void logGlogMessages(google::LogSeverity severity, const char *filename,
                        int line, const char *message) {
-    (void)filename;
-    (void)line;
     // glog severity to Rerun log level
     rerun::TextLogLevel level;
     switch (severity) {
@@ -250,6 +219,8 @@ public:
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
+    LOG(INFO) << "Backend output timestamp: " << input.timestamp_;
+
     odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
     odom_states_.insert(input.backend_output_->cur_kf_id_,
                         input.backend_output_->W_State_Blkf_.pose_);
@@ -263,7 +234,10 @@ public:
     //                       Pose3::Identity(), cur_cov.block<3, 3>(0, 0),
     //                       aria::viz::ColorMap::kGreen, 0.1);
 
-    cv::Mat tracking_image_clone = input.frontend_output_->feature_tracks_.clone();
+    cv::Mat tracking_image_clone =
+        input.frontend_output_->getTrackingImage()->clone();
+
+    auto K = input.frontend_output_->getTrackingFrame()->cam_param_.K_;
 
     // only draw every 3 frames
     // if (input.backend_output_->cur_kf_id_ % 3 == 0) {
@@ -274,15 +248,52 @@ public:
     //                    false);
     // }
 
-    if (not input.frontend_output_->feature_tracks_.empty()) {
+    if (not input.frontend_output_->getTrackingImage()->empty()) {
       cv::Mat small_image;
       cv::resize(tracking_image_clone, small_image, cv::Size(), 0.5, 0.5);
       this->drawImage(map_ / odom_ / baselink_ / "tracking" / "image",
                       small_image, false);
     }
 
-    drawKimeraMesh(input);
-    publishKimeraMeshTopics(input);
+    Landmarks lmks_vec;
+    // convert landmark id->landmark map to vector
+    for (const auto &[id, landmark] :
+         input.backend_output_->landmarks_in_local_window_) {
+      lmks_vec.push_back(landmark);
+    }
+
+    // find the earliest pose
+    FrameId earliest_frame = std::numeric_limits<FrameId>::max();
+    for (auto key : input.backend_output_->state_.keys()) {
+      Symbol symbol(key);
+      if (symbol.chr() == kPoseSymbolChar) {
+        if (symbol.index() < earliest_frame) {
+          earliest_frame = symbol.index();
+        }
+      }
+    }
+
+    Pose3 T_smoother_pose = input.backend_output_->state_.at<Pose3>(
+        gtsam::Symbol(kPoseSymbolChar, earliest_frame));
+    Pose3 T_odom_pose = odom_states_.at<Pose3>(earliest_frame);
+    Pose3 W_T_smoother = T_odom_pose * T_smoother_pose.inverse();
+
+    smoother_states_.clear();
+    smoother_states_.insert_or_assign(input.backend_output_->state_);
+    visualizeLandmarks(map_ / odom_ / "smoother", lmks_vec,
+                       aria::viz::ColorMap::kRed);
+    drawTf(map_ / odom_ / "smoother", W_T_smoother);
+    drawPoints(map_ / odom_ / "smoother" / "states",
+               input.backend_output_->state_, {aria::viz::ColorMap::kRed},
+               {0.5});
+    pose_states_.clear();
+    for (const auto &key : smoother_states_.keys()) {
+      Symbol symbol(key);
+      if (symbol.chr() == kPoseSymbolChar) {
+        pose_states_.insert_or_assign(symbol.index(),
+                                      smoother_states_.at<Pose3>(key));
+      }
+    }
 
     // Check if it's time to save trajectories (every 10 seconds)
     this->checkAndSaveTrajectories(odom_states_);
@@ -390,6 +401,26 @@ public:
         }
       }
     }
+  }
+
+  void visualizeGraphInSmoother(const VIO::VisualizerInput &input) {
+    this->drawPoints(map_ / odom_ / "smoother" / "values",
+                     input.backend_output_->state_, {aria::viz::ColorMap::kRed},
+                     {2.}, {}, false);
+    if (not input.backend_output_->debug_info_.graphBeforeOpt.empty()) {
+      this->drawFactors(map_ / odom_ / "smoother" / "graph",
+                        input.backend_output_->debug_info_.graphBeforeOpt,
+                        input.backend_output_->state_,
+                        aria::viz::ColorMap::kRed, 1., false, true);
+    }
+  }
+
+  void visualizeLandmarks(std::filesystem::path base_frame,
+                          const Landmarks &landmarks, Eigen::Vector4f color) {
+    std::vector<Point3> lmk_points(landmarks.begin(), landmarks.end());
+
+    this->drawPoints(base_frame / "landmarks", lmk_points, {color}, {0.001}, {},
+                     false);
   }
 
   void checkAndSaveTrajectories(const gtsam::Values &states = gtsam::Values()) {
@@ -570,386 +601,10 @@ public:
     return trajectory;
   }
 
-  struct MeshLogData {
-    std::vector<gtsam::Point3> vertex_positions;
-    std::vector<aria::viz::MeshTriangle> triangle_indices;
-    std::vector<aria::viz::MeshTexcoord> vertex_texcoords;
-    std::vector<gtsam::Point3> vertex_normals;
-    cv::Mat texture_image;
-  };
-
-  static std::optional<std::string> getRosImageEncoding(const cv::Mat& image) {
-    switch (image.type()) {
-      case CV_8UC1:
-        return "mono8";
-      case CV_8UC3:
-        return "bgr8";
-      case CV_8UC4:
-        return "bgra8";
-      default:
-        return std::nullopt;
-    }
-  }
-
-  sensor_msgs::msg::PointCloud2 buildMeshPointCloudMessage(
-      const MeshLogData& mesh_log_data, const rclcpp::Time& stamp) const {
-    sensor_msgs::msg::PointCloud2 cloud_msg;
-    cloud_msg.header.stamp = stamp;
-    cloud_msg.header.frame_id = map_.string();
-
-    sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
-    modifier.setPointCloud2Fields(
-        8, "x", 1, sensor_msgs::msg::PointField::FLOAT32, "y", 1,
-        sensor_msgs::msg::PointField::FLOAT32, "z", 1,
-        sensor_msgs::msg::PointField::FLOAT32, "normal_x", 1,
-        sensor_msgs::msg::PointField::FLOAT32, "normal_y", 1,
-        sensor_msgs::msg::PointField::FLOAT32, "normal_z", 1,
-        sensor_msgs::msg::PointField::FLOAT32, "u", 1,
-        sensor_msgs::msg::PointField::FLOAT32, "v", 1,
-        sensor_msgs::msg::PointField::FLOAT32);
-    modifier.resize(mesh_log_data.vertex_positions.size());
-
-    sensor_msgs::PointCloud2Iterator<float> iter_x(cloud_msg, "x");
-    sensor_msgs::PointCloud2Iterator<float> iter_y(cloud_msg, "y");
-    sensor_msgs::PointCloud2Iterator<float> iter_z(cloud_msg, "z");
-    sensor_msgs::PointCloud2Iterator<float> iter_normal_x(cloud_msg, "normal_x");
-    sensor_msgs::PointCloud2Iterator<float> iter_normal_y(cloud_msg, "normal_y");
-    sensor_msgs::PointCloud2Iterator<float> iter_normal_z(cloud_msg, "normal_z");
-    sensor_msgs::PointCloud2Iterator<float> iter_u(cloud_msg, "u");
-    sensor_msgs::PointCloud2Iterator<float> iter_v(cloud_msg, "v");
-
-    for (size_t idx = 0; idx < mesh_log_data.vertex_positions.size();
-         ++idx, ++iter_x, ++iter_y, ++iter_z, ++iter_normal_x, ++iter_normal_y,
-                ++iter_normal_z, ++iter_u, ++iter_v) {
-      const auto& position = mesh_log_data.vertex_positions[idx];
-      const auto& texcoord = mesh_log_data.vertex_texcoords[idx];
-      const auto& normal = mesh_log_data.vertex_normals[idx];
-
-      *iter_x = static_cast<float>(position.x());
-      *iter_y = static_cast<float>(position.y());
-      *iter_z = static_cast<float>(position.z());
-      *iter_normal_x = static_cast<float>(normal.x());
-      *iter_normal_y = static_cast<float>(normal.y());
-      *iter_normal_z = static_cast<float>(normal.z());
-      *iter_u = texcoord[0];
-      *iter_v = texcoord[1];
-    }
-
-    return cloud_msg;
-  }
-
-  pcl_msgs::msg::PolygonMesh buildPolygonMeshMessage(
-      const MeshLogData& mesh_log_data, const rclcpp::Time& stamp) const {
-    pcl_msgs::msg::PolygonMesh mesh_msg;
-    mesh_msg.header.stamp = stamp;
-    mesh_msg.header.frame_id = map_.string();
-    mesh_msg.cloud = buildMeshPointCloudMessage(mesh_log_data, stamp);
-    mesh_msg.polygons.reserve(mesh_log_data.triangle_indices.size());
-    for (const auto& triangle : mesh_log_data.triangle_indices) {
-      pcl_msgs::msg::Vertices polygon;
-      polygon.vertices = {triangle[0], triangle[1], triangle[2]};
-      mesh_msg.polygons.push_back(std::move(polygon));
-    }
-    return mesh_msg;
-  }
-
-  sensor_msgs::msg::Image::SharedPtr buildTextureImageMessage(
-      const cv::Mat& texture_image, const rclcpp::Time& stamp) const {
-    const auto encoding = getRosImageEncoding(texture_image);
-    if (!encoding) {
-      return nullptr;
-    }
-
-    cv_bridge::CvImage texture_cv_image;
-    texture_cv_image.header.stamp = stamp;
-    texture_cv_image.header.frame_id = map_.string();
-    texture_cv_image.encoding = *encoding;
-    texture_cv_image.image = texture_image;
-    return texture_cv_image.toImageMsg();
-  }
-
-  static cv::Mat getStereoTextureImage(const VIO::FrontendOutput& frontend_output) {
-    const auto& stereo_frame = frontend_output.stereo_frame_lkf_;
-    if (!stereo_frame.getLeftFrame().img_.empty()) {
-      return stereo_frame.getLeftFrame().img_;
-    }
-    if (!stereo_frame.left_img_rectified_.empty()) {
-      return stereo_frame.left_img_rectified_;
-    }
-    return cv::Mat();
-  }
-
-  static std::vector<gtsam::Point3> extractMeshVertexPositions(
-      const VIO::Mesh3D& mesh_3d) {
-    cv::Mat vertices_mesh;
-    mesh_3d.convertVerticesMeshToMat(&vertices_mesh);
-
-    std::vector<gtsam::Point3> vertex_positions;
-    vertex_positions.reserve(vertices_mesh.rows);
-    for (int row = 0; row < vertices_mesh.rows; ++row) {
-      const auto& vertex = vertices_mesh.at<cv::Point3f>(row, 0);
-      vertex_positions.emplace_back(vertex.x, vertex.y, vertex.z);
-    }
-    return vertex_positions;
-  }
-
-  static std::vector<aria::viz::MeshTriangle> extractMeshTriangleIndices(
-      const VIO::Mesh3D& mesh_3d, cv::Mat* polygons_mesh_out = nullptr) {
-    cv::Mat polygons_mesh;
-    mesh_3d.convertPolygonsMeshToMat(&polygons_mesh);
-    if (polygons_mesh_out) {
-      *polygons_mesh_out = polygons_mesh;
-    }
-
-    const size_t polygon_dimension = mesh_3d.getMeshPolygonDimension();
-    if (polygon_dimension != 3u) {
-      throw std::runtime_error("Only triangular meshes are supported in RerunVisualizer");
-    }
-    if (polygons_mesh.rows % static_cast<int>(polygon_dimension + 1u) != 0) {
-      throw std::runtime_error("Malformed mesh polygon buffer");
-    }
-
-    std::vector<aria::viz::MeshTriangle> triangles;
-    triangles.reserve(mesh_3d.getNumberOfPolygons());
-    for (size_t polygon_idx = 0; polygon_idx < mesh_3d.getNumberOfPolygons();
-         ++polygon_idx) {
-      const int offset =
-          static_cast<int>(polygon_idx * (polygon_dimension + 1u));
-      const int polygon_size = polygons_mesh.at<int>(offset, 0);
-      if (polygon_size != 3) {
-        throw std::runtime_error("Encountered a non-triangle polygon");
-      }
-
-      triangles.push_back({
-          static_cast<uint32_t>(polygons_mesh.at<int>(offset + 1, 0)),
-          static_cast<uint32_t>(polygons_mesh.at<int>(offset + 2, 0)),
-          static_cast<uint32_t>(polygons_mesh.at<int>(offset + 3, 0)),
-      });
-    }
-    return triangles;
-  }
-
-  static std::optional<MeshLogData> buildTexturedMeshLogData(
-      const VIO::VisualizerInput& input) {
-    if (!input.mesher_output_) {
-      return std::nullopt;
-    }
-
-    const cv::Mat texture_image = getStereoTextureImage(*input.frontend_output_);
-    if (texture_image.empty()) {
-      return std::nullopt;
-    }
-
-    const auto& mesh_2d = input.mesher_output_->mesh_2d_;
-    const auto& mesh_3d = input.mesher_output_->mesh_3d_;
-    const size_t polygon_dimension = mesh_2d.getMeshPolygonDimension();
-    if (polygon_dimension != 3u || mesh_2d.getNumberOfPolygons() == 0) {
-      return std::nullopt;
-    }
-
-    MeshLogData mesh_log_data;
-    mesh_log_data.texture_image = texture_image;
-    mesh_log_data.vertex_positions.reserve(mesh_2d.getNumberOfPolygons() *
-                                           polygon_dimension);
-    mesh_log_data.vertex_texcoords.reserve(mesh_2d.getNumberOfPolygons() *
-                                           polygon_dimension);
-    mesh_log_data.vertex_normals.reserve(mesh_2d.getNumberOfPolygons() *
-                                         polygon_dimension);
-    mesh_log_data.triangle_indices.reserve(mesh_2d.getNumberOfPolygons());
-
-    const float denom_x = std::max(1, texture_image.cols);
-    const float denom_y = std::max(1, texture_image.rows);
-
-    VIO::Mesh2D::Polygon polygon_2d;
-    for (size_t polygon_idx = 0; polygon_idx < mesh_2d.getNumberOfPolygons();
-         ++polygon_idx) {
-      if (!mesh_2d.getPolygon(polygon_idx, &polygon_2d) ||
-          polygon_2d.size() != polygon_dimension) {
-        continue;
-      }
-
-      VIO::Mesh3D::VertexType vertices_3d[3];
-      if (!mesh_3d.getVertex(polygon_2d[0].getLmkId(), &vertices_3d[0]) ||
-          !mesh_3d.getVertex(polygon_2d[1].getLmkId(), &vertices_3d[1]) ||
-          !mesh_3d.getVertex(polygon_2d[2].getLmkId(), &vertices_3d[2])) {
-        continue;
-      }
-
-      const uint32_t base_index =
-          static_cast<uint32_t>(mesh_log_data.vertex_positions.size());
-
-      for (size_t vertex_idx = 0; vertex_idx < polygon_dimension; ++vertex_idx) {
-        const auto& position = vertices_3d[vertex_idx].getVertexPosition();
-        const auto& normal = vertices_3d[vertex_idx].getVertexNormal();
-        const auto& pixel = polygon_2d[vertex_idx].getVertexPosition();
-
-        mesh_log_data.vertex_positions.emplace_back(position.x, position.y,
-                                                    position.z);
-        mesh_log_data.vertex_normals.emplace_back(normal.x, normal.y, normal.z);
-        mesh_log_data.vertex_texcoords.push_back({
-            std::clamp(pixel.x / denom_x, 0.0f, 1.0f),
-            std::clamp(pixel.y / denom_y, 0.0f, 1.0f),
-        });
-      }
-
-      // Match the legacy RViz publisher winding order.
-      mesh_log_data.triangle_indices.push_back(
-          {base_index + 2u, base_index + 1u, base_index});
-    }
-
-    if (mesh_log_data.triangle_indices.empty()) {
-      return std::nullopt;
-    }
-    return mesh_log_data;
-  }
-
-  static std::optional<MeshLogData> buildGeometryMeshLogData(
-      const VIO::VisualizerInput& input) {
-    if (!input.mesher_output_) {
-      return std::nullopt;
-    }
-
-    const auto& mesh_3d = input.mesher_output_->mesh_3d_;
-    if (mesh_3d.getNumberOfPolygons() == 0 ||
-        mesh_3d.getNumberOfUniqueVertices() == 0) {
-      return std::nullopt;
-    }
-
-    MeshLogData mesh_log_data;
-    mesh_log_data.vertex_positions = extractMeshVertexPositions(mesh_3d);
-    mesh_log_data.triangle_indices = extractMeshTriangleIndices(mesh_3d);
-    return mesh_log_data;
-  }
-
-  static std::vector<std::pair<Point3, Point3>> buildMeshWireframe(
-      const std::vector<Point3>& vertex_positions,
-      const std::vector<aria::viz::MeshTriangle>& triangle_indices) {
-    std::vector<std::pair<Point3, Point3>> wireframe_segments;
-    wireframe_segments.reserve(triangle_indices.size() * 3u);
-
-    std::set<std::pair<uint32_t, uint32_t>> seen_edges;
-    for (const auto& triangle : triangle_indices) {
-      const std::array<std::pair<uint32_t, uint32_t>, 3> edges = {{
-          {triangle[0], triangle[1]},
-          {triangle[1], triangle[2]},
-          {triangle[2], triangle[0]},
-      }};
-
-      for (const auto& edge : edges) {
-        const auto [vertex0_idx, vertex1_idx] =
-            std::minmax(edge.first, edge.second);
-        if (vertex0_idx >= vertex_positions.size() ||
-            vertex1_idx >= vertex_positions.size()) {
-          continue;
-        }
-        if (!seen_edges.emplace(vertex0_idx, vertex1_idx).second) {
-          continue;
-        }
-
-        wireframe_segments.emplace_back(vertex_positions[vertex0_idx],
-                                        vertex_positions[vertex1_idx]);
-      }
-    }
-
-    return wireframe_segments;
-  }
-
-  void drawKimeraWireframe(const std::string& entity_path,
-                           const std::vector<Point3>& vertex_positions,
-                           const std::vector<aria::viz::MeshTriangle>& triangle_indices) {
-    const auto wireframe_segments =
-        buildMeshWireframe(vertex_positions, triangle_indices);
-    if (wireframe_segments.empty()) {
-      return;
-    }
-
-    auto wireframe_color = aria::viz::ColorMap::kBlack;
-    wireframe_color[3] = 220.f;
-    this->drawLines(entity_path,
-                    wireframe_segments,
-                    {wireframe_color},
-                    1.5f);
-  }
-
-  void drawKimeraMesh(const VIO::VisualizerInput& input) {
-    const auto mesh_entity = map_ / "mesh";
-    const auto wireframe_entity = mesh_entity / "wireframe";
-    const auto textured_mesh = buildTexturedMeshLogData(input);
-    if (textured_mesh) {
-      if (!logged_textured_mesh_once_) {
-        logged_textured_mesh_once_ = true;
-        LOG(INFO) << "Logging textured Kimera mesh to Rerun with "
-                  << textured_mesh->vertex_positions.size()
-                  << " vertices and "
-                  << textured_mesh->triangle_indices.size() << " triangles.";
-      }
-      this->drawTexturedMesh(mesh_entity,
-                             textured_mesh->vertex_positions,
-                             textured_mesh->triangle_indices,
-                             textured_mesh->vertex_texcoords,
-                             textured_mesh->texture_image,
-                             {},
-                             textured_mesh->vertex_normals,
-                             false);
-      drawKimeraWireframe(wireframe_entity,
-                          textured_mesh->vertex_positions,
-                          textured_mesh->triangle_indices);
-      return;
-    }
-
-    if (logged_textured_mesh_once_) {
-      return;
-    }
-
-    const auto geometry_mesh = buildGeometryMeshLogData(input);
-    if (!geometry_mesh) {
-      return;
-    }
-
-    if (!logged_geometry_mesh_once_) {
-      logged_geometry_mesh_once_ = true;
-      LOG(INFO) << "Logging geometry-only Kimera mesh to Rerun with "
-                << geometry_mesh->vertex_positions.size() << " vertices and "
-                << geometry_mesh->triangle_indices.size() << " triangles.";
-    }
-    this->drawMesh(mesh_entity,
-                   geometry_mesh->vertex_positions,
-                   geometry_mesh->triangle_indices,
-                   {},
-                   {},
-                   false);
-    drawKimeraWireframe(wireframe_entity,
-                        geometry_mesh->vertex_positions,
-                        geometry_mesh->triangle_indices);
-  }
-
-  void publishKimeraMeshTopics(const VIO::VisualizerInput& input) {
-    if (!mesh_pub_ || !mesh_texture_pub_) {
-      return;
-    }
-
-    const auto textured_mesh = buildTexturedMeshLogData(input);
-    if (!textured_mesh) {
-      return;
-    }
-
-    const auto stamp = rclcpp::Time(input.timestamp_);
-    mesh_pub_->publish(buildPolygonMeshMessage(*textured_mesh, stamp));
-
-    auto texture_msg =
-        buildTextureImageMessage(textured_mesh->texture_image, stamp);
-    if (texture_msg) {
-      mesh_texture_pub_->publish(*texture_msg);
-    }
-  }
-
 private:
   std::filesystem::path baselink_;
   std::filesystem::path map_;
   std::filesystem::path odom_;
-  rclcpp::Node::SharedPtr node_;
-  rclcpp::Publisher<pcl_msgs::msg::PolygonMesh>::SharedPtr mesh_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mesh_texture_pub_;
 
   std::vector<Pose3> odom_traj_{};
   gtsam::Values odom_states_;
@@ -958,17 +613,21 @@ private:
   std::map<std::string, std::future<void>> save_traj_futures_;
   std::future<void> lcd_output_future_;
 
+  gtsam::Values smoother_states_;
+  gtsam::Values pose_states_;
+
   std::map<Timestamp, Pose3> gt_trajectory_;
-  Pose3 T_map_gt_ = Pose3();
+  Pose3 T_map_gt_ = Pose3::Identity();
   size_t prev_alignment_size_ = 0;
 
   std::string result_dir_{};
 
+  PointsWithIdMap landmarks_in_odom_;
+
   FrameIDTimestampMap timestamp_map_;
 
   std::optional<std::pair<FrameId, FrameId>> last_odom_pair_{std::nullopt};
-  bool logged_textured_mesh_once_{false};
-  bool logged_geometry_mesh_once_{false};
+  ISAM2 isam2_;
 
   std::mutex rerun_mutex_;
 

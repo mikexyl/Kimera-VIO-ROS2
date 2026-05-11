@@ -2,11 +2,12 @@
 #define KIMERA_ROS__INTERFACES__BASE_INTERFACE_HPP_
 
 #include <future>
+#include <memory>
 
 #include "glog/logging.h"
 #include "kimera-vio/dataprovider/DataProviderInterface.h"
 #include "kimera-vio/pipeline/Pipeline.h"
-#include "kimera-vio/visualizer/Visualizer3DModule.h"
+#include "kimera_vio_ros/interfaces/ros_loop_closure_visualizer.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
@@ -29,9 +30,10 @@ protected:
   rclcpp::Node::SharedPtr node_;
   VIO::VioParams::Ptr vio_params_;
   VIO::Pipeline::Ptr vio_pipeline_;
-  VIO::VisualizerModule::UniquePtr rerun_visualizer_module_;
+  std::unique_ptr<RosLoopClosureVisualizer> ros_lcd_visualizer_;
 
   std::string base_link_frame_id_;
+  std::string odom_frame_id_;
   std::string map_frame_id_;
   std::string world_frame_id_;
 
@@ -43,7 +45,6 @@ private:
   rclcpp::CallbackGroup::SharedPtr callback_group_pipeline_;
   rclcpp::TimerBase::SharedPtr pipeline_timer_;
   std::future<bool> handle_pipeline_;
-  std::future<bool> handle_rerun_visualizer_;
 };
 
 }  // namespace interfaces

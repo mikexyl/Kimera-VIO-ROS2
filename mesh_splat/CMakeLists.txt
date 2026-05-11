@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(aria_viz REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(GTSAM REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 find_package(pcl_msgs REQUIRED)
 find_package(projective_mesher_msgs REQUIRED)
@@ -30,6 +32,7 @@ ament_target_dependencies(projective_mesher_node
 )
 target_link_libraries(projective_mesher_node
   aria_viz
+  gtsam
   ${OpenCV_LIBRARIES}
 )
 

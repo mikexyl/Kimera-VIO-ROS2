@@ -28,15 +28,18 @@ find_package(message_filters REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(pcl_msgs REQUIRED)
-find_package(projective_mesher_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
-find_package(TIFF REQUIRED)
 find_package(aria_viz REQUIRED)
 find_package(aria_common REQUIRED)
 find_package(pose_graph_tools_msgs REQUIRED)
+find_library(SYSTEM_CURL_LIBRARY
+  NAMES curl
+  PATHS /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+  NO_DEFAULT_PATH
+  REQUIRED)
 
 kimera_package()
 
@@ -52,7 +55,6 @@ set(dependencies
   nav_msgs
   pcl_conversions
   pcl_msgs
-  projective_mesher_msgs
   rclcpp
   rclcpp_components
   pose_graph_tools_msgs
@@ -63,31 +65,44 @@ set(dependencies
 set(library_name ${PROJECT_NAME})
 add_library(${library_name} SHARED
   src/components/stereo_vio.cpp
+  src/components/mono_vio.cpp
   src/interfaces/backend_interface.cpp
   src/interfaces/base_interface.cpp
   src/interfaces/image_interface.cpp
   src/interfaces/imu_interface.cpp
+  src/interfaces/ros_loop_closure_visualizer.cpp
   src/interfaces/stereo_interface.cpp
   src/interfaces/stereo_vio_interface.cpp
+  src/interfaces/mono_interface.cpp
+  src/interfaces/mono_vio_interface.cpp
   src/interfaces/RerunVisualizer.cpp
   src/utils/geometry.cpp
 )
 ament_target_dependencies(${library_name}
   ${dependencies})
 rclcpp_components_register_nodes(${library_name}
-  "kimera_vio_ros::components::StereoVio")
+  "kimera_vio_ros::components::StereoVio"
+  "kimera_vio_ros::components::MonoVio")
 target_link_libraries(${library_name}
-  kimera_vio aria_common aria_viz TIFF::TIFF)
+  kimera_vio aria_common aria_viz ${SYSTEM_CURL_LIBRARY})
 
 add_executable(stereo_vio_node
   src/stereo_vio_node.cpp)
 ament_target_dependencies(stereo_vio_node
   ${dependencies})
 target_link_libraries(stereo_vio_node
-  ${library_name} TIFF::TIFF)
+  ${library_name} ${SYSTEM_CURL_LIBRARY})
+
+add_executable(mono_vio_node
+  src/mono_vio_node.cpp)
+ament_target_dependencies(mono_vio_node
+  ${dependencies})
+target_link_libraries(mono_vio_node
+  ${library_name} ${SYSTEM_CURL_LIBRARY})
 
 set(executable_names
   stereo_vio_node
+  mono_vio_node
 )
 
 install(TARGETS ${executable_names} ${library_name}

@@ -1,22 +1,22 @@
-#include "kimera_vio_ros/interfaces/stereo_vio_interface.hpp"
+#include "kimera_vio_ros/interfaces/mono_vio_interface.hpp"
 
 namespace kimera_vio_ros
 {
 namespace interfaces
 {
 
-StereoVioInterface::StereoVioInterface(
+MonoVioInterface::MonoVioInterface(
   rclcpp::Node::SharedPtr & node)
 : BaseInterface(node),
   ImageInterface(node),
   ImuInterface(node),
-  StereoInterface(node),
+  MonoInterface(node),
   BackendInterface(node)
 {
   BaseInterface::start();
 }
 
-StereoVioInterface::~StereoVioInterface()
+MonoVioInterface::~MonoVioInterface()
 {
 }
 

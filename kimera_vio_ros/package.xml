@@ -13,6 +13,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>cv_bridge</depend>
+  <depend>curl</depend>
   <depend>geometry_msgs</depend>
   <depend>kimera_common</depend>
   <depend>kimera_vio</depend>
@@ -23,7 +24,6 @@
   <depend>nav_msgs</depend>
   <depend>pcl_conversions</depend>
   <depend>pcl_msgs</depend>
-  <depend>projective_mesher_msgs</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
@@ -31,8 +31,6 @@
   <depend>aria_common</depend>
   <depend>aria_viz</depend>
   <depend>pose_graph_tools_msgs</depend>
-
-  <exec_depend>mesh_splat</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
