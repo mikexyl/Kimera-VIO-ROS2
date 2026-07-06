@@ -46,15 +46,20 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   }
   const auto rerun_result_dir =
       node_->declare_parameter<std::string>("rerun_result_dir", "");
+  const auto rerun_host = node_->declare_parameter<std::string>(
+      "rerun_host", "rerun+http://127.0.0.1:9876/proxy");
+  const auto use_rerun_visualizer =
+      node_->declare_parameter<bool>("use_rerun_visualizer", FLAGS_visualize);
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
-  if (FLAGS_visualize) {
+  if (use_rerun_visualizer) {
     rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
         VIO::RerunVisualizer::Params{
             .base_link_frame_id = base_link_frame_id_,
             .odom_frame_id = odom_frame_id_,
             .map_frame_id = map_frame_id_,
             .recording_id = rerun_recording_id,
-            .result_dir = rerun_result_dir});
+            .result_dir = rerun_result_dir,
+            .rerun_host = rerun_host});
   }
 
   vio_pipeline_.reset();

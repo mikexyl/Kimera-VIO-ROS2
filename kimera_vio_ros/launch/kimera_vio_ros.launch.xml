@@ -18,12 +18,7 @@
   <arg name="bow_skip_num" default="1"/>
   <arg name="publish_vlc_frames" default="true"/>
 
-  <arg name="params_folder" default="$(find-pkg-share kimera_vio)/params/$(var dataset_name)"/>
-
-  <!-- Specify the absolute path to the vocabulary file. -->
-  <!-- This is usually in the VIO directory (VIO/vocabulary/ORBvoc.yml). -->
-  <!-- <arg name="path_to_vocab" default="$(find-pkg-share kimera_vio)/vocabulary/ORBvoc.yml"/> -->
-  <arg name="path_to_vocab" default="/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/vocabulary/ORBvoc.yml"/>
+  <arg name="params_folder" default="$(find-pkg-share kimera_vio_ros)/param/$(var dataset_name)"/>
 
   <!-- Subscribed Topics -->
   <arg name="topic.left.image"    default="/cam0/image_raw"/>
@@ -45,6 +40,8 @@
   <!-- Visualize pipeline output in OpenCV. -->
   <!-- Note that this is duplicated from the flags file -->
   <arg name="visualize"    default="true" />
+  <arg name="use_rerun_visualizer" default="false"/>
+  <arg name="rerun_host" default="rerun+http://127.0.0.1:9876/proxy"/>
   <arg name="rerun_recording_id" default=""/>
   <arg name="rerun_result_dir" default=""/>
   <!-- <arg name="rectified"    default="true" /> -->
@@ -53,7 +50,6 @@
   <node name="kimera_vio_ros" pkg="kimera_vio_ros" exec="stereo_vio_node"
     output="screen" namespace="kimera_vio_ros"
     args="--use_lcd=$(var use_lcd) \
-        --vocabulary_path=$(var path_to_vocab) \
         --flagfile=$(var params_folder)/flags/Mesher.flags \
         --flagfile=$(var params_folder)/flags/VioBackend.flags \
         --flagfile=$(var params_folder)/flags/RegularVioBackend.flags \
@@ -74,6 +70,8 @@
     <param name="bow_batch_size"    value="$(var bow_batch_size)"/>
     <param name="bow_skip_num"      value="$(var bow_skip_num)"/>
     <param name="publish_vlc_frames" value="$(var publish_vlc_frames)"/>
+    <param name="use_rerun_visualizer" value="$(var use_rerun_visualizer)"/>
+    <param name="rerun_host" value="$(var rerun_host)"/>
     <param name="rerun_recording_id" value="$(var rerun_recording_id)"/>
     <param name="rerun_result_dir" value="$(var rerun_result_dir)"/>
 

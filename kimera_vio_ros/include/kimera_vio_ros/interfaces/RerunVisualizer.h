@@ -81,22 +81,26 @@ public:
     std::string gt_csv_file = "";
     std::optional<std::string> recording_id = std::nullopt;
     std::string result_dir = "";
+    std::string rerun_host = "rerun+http://127.0.0.1:9876/proxy";
   };
 
   RerunVisualizer(const Params &params)
       : RerunVisualizer(params.base_link_frame_id, params.odom_frame_id,
                         params.map_frame_id, params.gt_csv_file,
-                        params.recording_id, params.result_dir) {}
+                        params.recording_id, params.result_dir,
+                        params.rerun_host) {}
 
   RerunVisualizer(std::string base_link_frame_id = "baselink",
                   std::string odom_frame_id = "odom",
                   std::string map_frame_id = "map",
                   std::string gt_csv_file = "",
                   std::optional<std::string> recording_id = std::nullopt,
-                  std::string result_dir = "")
+                  std::string result_dir = "",
+                  std::string rerun_host =
+                      "rerun+http://127.0.0.1:9876/proxy")
       : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
-            "kimera_vio", recording_id, "rerun+http://172.17.0.1:9876/proxy")),
+            "kimera_vio", recording_id, rerun_host)),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
         result_dir_(result_dir) {
     // draw the origin frame for visualization
@@ -519,7 +523,7 @@ public:
         continue;
       } else if (diff > 1 and keys.size() == 2) { // loop closure edge
         auto between_factor =
-            boost::dynamic_pointer_cast<gtsam::BetweenFactor<gtsam::Pose3>>(
+            std::dynamic_pointer_cast<gtsam::BetweenFactor<gtsam::Pose3>>(
                 factor);
         if (not between_factor) {
           factor->print();
@@ -528,11 +532,11 @@ public:
         auto noise = between_factor->noiseModel();
         CHECK(noise);
         auto gauss =
-            boost::dynamic_pointer_cast<gtsam::noiseModel::Gaussian>(noise);
+            std::dynamic_pointer_cast<gtsam::noiseModel::Gaussian>(noise);
         if (not gauss) {
           auto robust =
-              boost::dynamic_pointer_cast<gtsam::noiseModel::Robust>(noise);
-          gauss = boost::dynamic_pointer_cast<gtsam::noiseModel::Gaussian>(
+              std::dynamic_pointer_cast<gtsam::noiseModel::Robust>(noise);
+          gauss = std::dynamic_pointer_cast<gtsam::noiseModel::Gaussian>(
               robust->noise());
         }
         CHECK(gauss);

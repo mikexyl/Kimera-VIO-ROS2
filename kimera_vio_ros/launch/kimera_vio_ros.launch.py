@@ -73,11 +73,6 @@ def generate_launch_description():
         ]),
         description='Directory that contains Kimera-VIO parameter files.'
     )
-    path_to_vocab_arg = DeclareLaunchArgument(
-        'path_to_vocab',
-        default_value='/opt/overlay_ws/src/MIT-SPARK/Kimera-VIO/vocabulary/ORBvoc.yml',
-        description='Absolute path to the ORB vocabulary file.'
-    )
     topic_left_image_arg = DeclareLaunchArgument(
         'topic.left.image',
         default_value='/cam0/image_raw',
@@ -138,6 +133,16 @@ def generate_launch_description():
         default_value='true',
         description='Enable OpenCV visualizations if true.'
     )
+    use_rerun_visualizer_arg = DeclareLaunchArgument(
+        'use_rerun_visualizer',
+        default_value='false',
+        description='Enable the Rerun visualizer independently of OpenCV visualizations.'
+    )
+    rerun_host_arg = DeclareLaunchArgument(
+        'rerun_host',
+        default_value='rerun+http://127.0.0.1:9876/proxy',
+        description='Rerun gRPC endpoint.'
+    )
     rerun_recording_id_arg = DeclareLaunchArgument(
         'rerun_recording_id',
         default_value='',
@@ -150,19 +155,18 @@ def generate_launch_description():
     )
 
     node_arguments = [
-        '--use_lcd', LaunchConfiguration('use_lcd'),
-        '--vocabulary_path', LaunchConfiguration('path_to_vocab'),
-        '--flagfile', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Mesher.flags']),
-        '--flagfile', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'VioBackend.flags']),
-        '--flagfile', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'RegularVioBackend.flags']),
-        '--flagfile', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Visualizer3D.flags']),
-        '--logtostderr', '1',
-        '--colorlogtostderr', '1',
-        '--log_prefix', '1',
-        '--v', LaunchConfiguration('verbosity'),
-        '--log_output', LaunchConfiguration('log_output'),
-        '--output_path', LaunchConfiguration('log_output_path'),
-        '--visualize', LaunchConfiguration('visualize'),
+        ['--use_lcd=', LaunchConfiguration('use_lcd')],
+        ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Mesher.flags'])],
+        ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'VioBackend.flags'])],
+        ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'RegularVioBackend.flags'])],
+        ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Visualizer3D.flags'])],
+        '--logtostderr=1',
+        '--colorlogtostderr=1',
+        '--log_prefix=1',
+        ['--v=', LaunchConfiguration('verbosity')],
+        ['--log_output=', LaunchConfiguration('log_output')],
+        ['--output_path=', LaunchConfiguration('log_output_path')],
+        ['--visualize=', LaunchConfiguration('visualize')],
     ]
 
     node_parameters = [{
@@ -183,6 +187,8 @@ def generate_launch_description():
         'position_det_threshold': 0.3,
         'stereo_ransac_threshold': 20,
         'mono_ransac_threshold': 30,
+        'use_rerun_visualizer': LaunchConfiguration('use_rerun_visualizer'),
+        'rerun_host': LaunchConfiguration('rerun_host'),
         'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
         'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
     }]
@@ -234,7 +240,6 @@ def generate_launch_description():
         bow_skip_num_arg,
         publish_vlc_frames_arg,
         params_folder_arg,
-        path_to_vocab_arg,
         topic_left_image_arg,
         topic_right_image_arg,
         topic_imu_data_arg,
@@ -247,6 +252,8 @@ def generate_launch_description():
         frame_id_world_arg,
         verbosity_arg,
         visualize_arg,
+        use_rerun_visualizer_arg,
+        rerun_host_arg,
         rerun_recording_id_arg,
         rerun_result_dir_arg,
         kimera_vio_node,
