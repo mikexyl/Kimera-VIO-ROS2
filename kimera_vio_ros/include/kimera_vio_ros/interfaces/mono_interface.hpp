@@ -26,7 +26,6 @@ private:
   bool camera_info_received_ = false;
 
   VIO::FrameId frame_count_;
-  rclcpp::Time last_mono_timestamp_;
 };
 
 } // namespace interfaces

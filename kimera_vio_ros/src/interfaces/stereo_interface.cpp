@@ -6,8 +6,7 @@ namespace kimera_vio_ros {
 namespace interfaces {
 
 StereoInterface::StereoInterface(rclcpp::Node::SharedPtr &node)
-    : BaseInterface(node), ImageInterface(node), frame_count_(VIO::FrameId(0)),
-      last_stereo_timestamp_(0) {
+    : BaseInterface(node), ImageInterface(node), frame_count_(VIO::FrameId(0)) {
   this->registerLeftFrameCallback(std::bind(&VIO::Pipeline::fillLeftFrameQueue,
                                             vio_pipeline_.get(),
                                             std::placeholders::_1));
@@ -40,6 +39,7 @@ StereoInterface::StereoInterface(rclcpp::Node::SharedPtr &node)
   exact_info_sync_->registerCallback(&StereoInterface::stereo_info_cb, this);
 
   auto image_qos = rclcpp::SensorDataQoS();
+  image_qos.keep_last(1);
   std::string left_image_topic = "left/image";
   std::string right_image_topic = "right/image";
   // TODO: Perhaps switch to image_transport to support more transports
@@ -109,36 +109,33 @@ void StereoInterface::stereo_image_cb(const Image::SharedPtr left_msg,
                                       const Image::SharedPtr right_msg) {
   rclcpp::Time left_stamp(left_msg->header.stamp);
   rclcpp::Time right_stamp(right_msg->header.stamp);
-  if (left_stamp.nanoseconds() > last_stereo_timestamp_.nanoseconds()) {
-    static const VIO::CameraParams &left_cam_info =
-        vio_params_->camera_params_.at(0);
-    static const VIO::CameraParams &right_cam_info =
-        vio_params_->camera_params_.at(1);
+  static const VIO::CameraParams &left_cam_info =
+      vio_params_->camera_params_.at(0);
+  static const VIO::CameraParams &right_cam_info =
+      vio_params_->camera_params_.at(1);
 
-    const VIO::Timestamp &timestamp_left = left_stamp.nanoseconds();
-    const VIO::Timestamp &timestamp_right = right_stamp.nanoseconds();
-    const VIO::Timestamp &timestamp_right_frame =
-        force_same_image_timestamp_ ? timestamp_left : timestamp_right;
+  const VIO::Timestamp timestamp_left = left_stamp.nanoseconds();
+  const VIO::Timestamp timestamp_right = right_stamp.nanoseconds();
+  const VIO::Timestamp timestamp_right_frame =
+      force_same_image_timestamp_ ? timestamp_left : timestamp_right;
 
-    // CHECK(left_frame_callback_)
-    // << "Did you forget to register the left frame callback?";
-    // CHECK(right_frame_callback_)
-    // << "Did you forget to register the right frame callback?";
-    //  TODO: Use RCLCPP_INFO inplace of CHECK?
-    // RCLCPP_INFO(this->get_logger(), "Did you forget to register the right
-    // frame callback?");
+  // CHECK(left_frame_callback_)
+  // << "Did you forget to register the left frame callback?";
+  // CHECK(right_frame_callback_)
+  // << "Did you forget to register the right frame callback?";
+  //  TODO: Use RCLCPP_INFO inplace of CHECK?
+  // RCLCPP_INFO(this->get_logger(), "Did you forget to register the right
+  // frame callback?");
 
-    auto left_img = readRosImage(left_msg);
-    auto right_img = readRosImage(right_msg);
+  auto left_img = readRosImage(left_msg);
+  auto right_img = readRosImage(right_msg);
 
-    left_frame_callback_(std::make_unique<VIO::Frame>(
-        frame_count_, timestamp_left, left_cam_info, left_img));
-    right_frame_callback_(std::make_unique<VIO::Frame>(
-        frame_count_, timestamp_right_frame, right_cam_info, right_img));
-    // LOG_EVERY_N(INFO, 30) << "Done: KimeraVioNode::stereo_image_cb";
-    frame_count_++;
-  }
-  last_stereo_timestamp_ = left_stamp;
+  left_frame_callback_(std::make_unique<VIO::Frame>(
+      frame_count_, timestamp_left, left_cam_info, left_img));
+  right_frame_callback_(std::make_unique<VIO::Frame>(
+      frame_count_, timestamp_right_frame, right_cam_info, right_img));
+  // LOG_EVERY_N(INFO, 30) << "Done: KimeraVioNode::stereo_image_cb";
+  frame_count_++;
 }
 
 } // namespace interfaces

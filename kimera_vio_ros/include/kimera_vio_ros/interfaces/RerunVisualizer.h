@@ -6,10 +6,23 @@
 #include <kimera-vio/loopclosure/LoopClosureDetector-definitions.h>
 #include <kimera-vio/loopclosure/LoopClosureDetector.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
+#include <opencv2/imgproc.hpp>
 #include <spdlog/fmt/fmt.h>
+#include <xfeat-cpp/mono_depth/mono_depth.h>
 
+#ifdef HAVE_TENSORRT
+#include <xfeat-cpp/mono_depth/depth_anything_v3_trt.h>
+#endif
+
+#include <algorithm>
+#include <cmath>
 #include <chrono>
+#include <filesystem>
 #include <future>
+#include <limits>
+#include <map>
+#include <optional>
+#include <utility>
 
 namespace VIO {
 
@@ -74,6 +87,27 @@ private:
 
 class RerunVisualizer : public Visualizer3D, aria::viz::VisualizerRerun {
 public:
+  struct MonoDepthParams {
+    bool enabled = false;
+    std::string engine_path;
+    int device_id = 0;
+    int point_stride = 4;
+    int max_points_per_keyframe = 5000;
+    int max_map_points = 200000;
+    double min_depth_m = 0.1;
+    double max_depth_m = 30.0;
+    float point_radius = 0.005f;
+    bool verbose = false;
+  };
+
+  struct CachedMonoDepthFrame {
+    cv::Mat image;
+    CameraParams::Intrinsics intrinsics{};
+    gtsam::Pose3 body_T_cam;
+    KeypointsCV keypoints;
+    LandmarkIds landmarks;
+  };
+
   struct Params {
     std::string base_link_frame_id = "baselink";
     std::string odom_frame_id = "odom";
@@ -82,27 +116,28 @@ public:
     std::optional<std::string> recording_id = std::nullopt;
     std::string result_dir = "";
     std::string rerun_host = "rerun+http://127.0.0.1:9876/proxy";
+    MonoDepthParams mono_depth;
   };
 
   RerunVisualizer(const Params &params)
       : RerunVisualizer(params.base_link_frame_id, params.odom_frame_id,
                         params.map_frame_id, params.gt_csv_file,
                         params.recording_id, params.result_dir,
-                        params.rerun_host) {}
+                        params.rerun_host, params.mono_depth) {}
 
-  RerunVisualizer(std::string base_link_frame_id = "baselink",
-                  std::string odom_frame_id = "odom",
-                  std::string map_frame_id = "map",
-                  std::string gt_csv_file = "",
-                  std::optional<std::string> recording_id = std::nullopt,
-                  std::string result_dir = "",
-                  std::string rerun_host =
-                      "rerun+http://127.0.0.1:9876/proxy")
+  RerunVisualizer(std::string base_link_frame_id,
+                  std::string odom_frame_id,
+                  std::string map_frame_id,
+                  std::string gt_csv_file,
+                  std::optional<std::string> recording_id,
+                  std::string result_dir,
+                  std::string rerun_host,
+                  MonoDepthParams mono_depth_params)
       : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
             "kimera_vio", recording_id, rerun_host)),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
-        result_dir_(result_dir) {
+        result_dir_(result_dir), mono_depth_params_(std::move(mono_depth_params)) {
     // draw the origin frame for visualization
     this->drawTf(map_, Pose3::Identity(), 0.3, true);
 
@@ -137,6 +172,11 @@ public:
       LOG(INFO) << "RerunVisualizer result directory: " << result_dir_;
     } else {
       LOG(INFO) << "RerunVisualizer result disabled";
+    }
+
+    if (mono_depth_params_.enabled) {
+      LOG(INFO) << "Mono depth mapping enabled with engine: "
+                << mono_depth_params_.engine_path;
     }
 
     // Initialize timer for trajectory saving
@@ -238,26 +278,18 @@ public:
     //                       Pose3::Identity(), cur_cov.block<3, 3>(0, 0),
     //                       aria::viz::ColorMap::kGreen, 0.1);
 
-    cv::Mat tracking_image_clone =
-        input.frontend_output_->getTrackingImage()->clone();
-
-    auto K = input.frontend_output_->getTrackingFrame()->cam_param_.K_;
-
-    // only draw every 3 frames
-    // if (input.backend_output_->cur_kf_id_ % 3 == 0) {
-    //   this->drawCamera(input.backend_output_->cur_kf_id_,
-    //                    input.backend_output_->W_State_Blkf_.pose_,
-    //                    tracking_image_clone,
-    //                    K,
-    //                    false);
-    // }
+    drawCameraEntity(input);
 
     if (not input.frontend_output_->getTrackingImage()->empty()) {
+      cv::Mat tracking_image_clone =
+          input.frontend_output_->getTrackingImage()->clone();
       cv::Mat small_image;
       cv::resize(tracking_image_clone, small_image, cv::Size(), 0.5, 0.5);
       this->drawImage(map_ / odom_ / baselink_ / "tracking" / "image",
                       small_image, false);
     }
+
+    updateMonoDepthMap(input);
 
     Landmarks lmks_vec;
     // convert landmark id->landmark map to vector
@@ -305,50 +337,42 @@ public:
     return std::make_unique<VIO::VisualizerOutput>();
   }
 
-  void drawCamera(int id, const Pose3 &cam_pose, const cv::Mat &image,
-                  const cv::Mat &K, bool is_static = true) {
-    // draw the tf for this camera
-    std::string cam_name = fmt::format("f{}", id);
-    this->drawTf(map_ / odom_ / "camera" / cam_name, cam_pose, 0, is_static);
-
-    if (not image.empty()) {
-      cv::Mat rgba32;
-      if (image.type() == CV_8UC3) {
-        cv::cvtColor(image, rgba32, cv::COLOR_BGR2RGBA);
-      } else if (image.type() == CV_8UC1) {
-        cv::cvtColor(image, rgba32, cv::COLOR_GRAY2RGBA);
-      } else if (image.type() == CV_8UC4) {
-        rgba32 = image;
-      } else {
-        throw std::runtime_error("Unsupported image type");
-      }
-      std::array<float, 9> K_vec = {
-          static_cast<float>(K.at<double>(0, 0)), // fx
-          0.f,
-          static_cast<float>(K.at<double>(0, 2)), // cx
-          0.f,
-          static_cast<float>(K.at<double>(1, 1)), // fy
-          static_cast<float>(K.at<double>(1, 2)), // cy
-          0.f,
-          0.f,
-          1.f};
-      rerun::components::PinholeProjection pp(K_vec);
-
-      this->rec()->log_with_static(
-          (map_ / odom_ / "camera" / cam_name).c_str(), is_static,
-          rerun::Image::from_rgba32(rgba32,
-                                    {static_cast<uint32_t>(image.cols),
-                                     static_cast<uint32_t>(image.rows)}));
-      // draw the camera
-      this->rec()->log_with_static(
-          (map_ / odom_ / "camera" / cam_name).c_str(), is_static,
-          rerun::Pinhole::from_focal_length_and_resolution(
-              K_vec[0],
-              {static_cast<float>(image.cols), static_cast<float>(image.rows)})
-              .with_image_plane_distance(0.1f)
-              .with_camera_xyz(rerun::components::ViewCoordinates::FRD));
-      // .with_image_from_camera(pp));
+  void drawCameraEntity(const VIO::VisualizerInput &input) {
+    const Frame *frame = input.frontend_output_->getTrackingFrame();
+    if (frame == nullptr || frame->img_.empty()) {
+      return;
     }
+
+    const gtsam::Pose3 &body_T_cam = frame->cam_param_.body_Pose_cam_;
+    const gtsam::Pose3 odom_T_body = input.backend_output_->W_State_Blkf_.pose_;
+    const gtsam::Pose3 odom_T_cam = odom_T_body.compose(body_T_cam);
+    const std::filesystem::path camera_path =
+        map_ / odom_ / baselink_ / "camera";
+
+    this->drawTf(camera_path, body_T_cam, 0.35f, false);
+    camera_traj_.push_back(odom_T_cam);
+    this->drawTrajectory(map_ / odom_ / "camera_trajectory", camera_traj_,
+                         aria::viz::ColorMap::kLightBlue, 0.5f, false);
+
+    const cv::Mat &K = frame->cam_param_.K_;
+    std::array<float, 9> K_vec = {
+        static_cast<float>(K.at<double>(0, 0)), // fx
+        0.f,
+        0.f,
+        0.f,
+        static_cast<float>(K.at<double>(1, 1)), // fy
+        0.f,
+        static_cast<float>(K.at<double>(0, 2)), // cx
+        static_cast<float>(K.at<double>(1, 2)), // cy
+        1.f};
+    rerun::components::PinholeProjection image_from_camera(K_vec);
+
+    this->rec()->log_with_static(
+        camera_path.c_str(), false,
+        rerun::Pinhole(image_from_camera)
+            .with_resolution(frame->img_.cols, frame->img_.rows)
+            .with_image_plane_distance(0.3f)
+            .with_camera_xyz(rerun::components::ViewCoordinates::RDF));
   }
 
   void drawGtTraj(gtsam::Values est_traj_values,
@@ -425,6 +449,294 @@ public:
 
     this->drawPoints(base_frame / "landmarks", lmk_points, {color}, {0.001}, {},
                      false);
+  }
+
+  bool ensureMonoDepthEstimator() {
+    if (!mono_depth_params_.enabled || mono_depth_failed_) {
+      return false;
+    }
+#ifdef HAVE_TENSORRT
+    if (mono_depth_) {
+      return true;
+    }
+    if (mono_depth_params_.engine_path.empty()) {
+      LOG(ERROR) << "Mono depth mapping is enabled but mono_depth.engine_path "
+                    "is empty.";
+      mono_depth_failed_ = true;
+      return false;
+    }
+    if (!std::filesystem::exists(mono_depth_params_.engine_path)) {
+      LOG(ERROR) << "Mono depth TensorRT engine does not exist: "
+                 << mono_depth_params_.engine_path;
+      mono_depth_failed_ = true;
+      return false;
+    }
+
+    try {
+      xfeat::DepthAnythingV3TRT::Params params;
+      params.engine_path = mono_depth_params_.engine_path;
+      params.device_id = mono_depth_params_.device_id;
+      params.verbose = mono_depth_params_.verbose;
+      mono_depth_ = std::make_unique<xfeat::DepthAnythingV3TRT>(params);
+    } catch (const std::exception &e) {
+      LOG(ERROR) << "Failed to initialize DA3 mono depth: " << e.what();
+      mono_depth_failed_ = true;
+      return false;
+    }
+    return true;
+#else
+    LOG(ERROR) << "Mono depth mapping requires xfeat-cpp TensorRT support, but "
+                  "HAVE_TENSORRT is not enabled.";
+    mono_depth_failed_ = true;
+    return false;
+#endif
+  }
+
+  void updateMonoDepthMap(const VIO::VisualizerInput &input) {
+    const auto frontend_type = input.frontend_output_->frontend_type_;
+    if (!mono_depth_params_.enabled ||
+        (frontend_type != FrontendType::kMonoImu &&
+         frontend_type != FrontendType::kStereoImu)) {
+      return;
+    }
+
+    if (input.frontend_output_->is_keyframe_) {
+      cacheMonoDepthFrame(input);
+    }
+
+    const std::optional<FrameId> target_frame_id =
+        findOldestSmootherPoseFrameId(input.backend_output_->state_);
+    if (!target_frame_id.has_value()) {
+      return;
+    }
+
+    if (!last_oldest_mono_depth_frame_id_.has_value()) {
+      last_oldest_mono_depth_frame_id_ = *target_frame_id;
+      return;
+    }
+    if (*last_oldest_mono_depth_frame_id_ == *target_frame_id) {
+      return;
+    }
+    last_oldest_mono_depth_frame_id_ = *target_frame_id;
+
+    if (last_mono_depth_frame_id_.has_value() &&
+        *last_mono_depth_frame_id_ == *target_frame_id) {
+      return;
+    }
+
+    const auto timestamp_it = timestamp_map_.find(*target_frame_id);
+    if (timestamp_it == timestamp_map_.end()) {
+      return;
+    }
+
+    const auto frame_it = mono_depth_frame_cache_.find(*target_frame_id);
+    if (frame_it == mono_depth_frame_cache_.end()) {
+      return;
+    }
+
+    const gtsam::Symbol target_pose_key(kPoseSymbolChar, *target_frame_id);
+    if (input.backend_output_->state_.find(target_pose_key) ==
+        input.backend_output_->state_.end()) {
+      return;
+    }
+    if (odom_states_.find(*target_frame_id) == odom_states_.end()) {
+      return;
+    }
+
+    if (!ensureMonoDepthEstimator()) {
+      return;
+    }
+
+    const CachedMonoDepthFrame &frame = frame_it->second;
+    if (frame.image.empty()) {
+      return;
+    }
+    // Keep the image, intrinsics, and extrinsics from the same camera params.
+    const gtsam::Pose3 &body_T_cam = frame.body_T_cam;
+
+    cv::Mat bgr_image;
+    if (frame.image.type() == CV_8UC3) {
+      bgr_image = frame.image;
+    } else if (frame.image.type() == CV_8UC1) {
+      cv::cvtColor(frame.image, bgr_image, cv::COLOR_GRAY2BGR);
+    } else if (frame.image.type() == CV_8UC4) {
+      cv::cvtColor(frame.image, bgr_image, cv::COLOR_BGRA2BGR);
+    } else {
+      LOG_EVERY_N(WARNING, 30)
+          << "Skipping mono depth map update for unsupported image type: "
+          << frame.image.type();
+      return;
+    }
+
+    const auto &intrinsics = frame.intrinsics;
+    const double fx = intrinsics[0];
+    const double fy = intrinsics[1];
+    const double cx = intrinsics[2];
+    const double cy = intrinsics[3];
+    if (fx <= 0.0 || fy <= 0.0) {
+      LOG_EVERY_N(WARNING, 30)
+          << "Skipping mono depth map update because camera intrinsics are "
+             "invalid.";
+      return;
+    }
+
+    xfeat::MonoDepthResult depth_result;
+    try {
+#ifdef HAVE_TENSORRT
+      xfeat::CameraIntrinsics mono_intrinsics;
+      mono_intrinsics.fx = fx;
+      mono_intrinsics.fy = fy;
+      mono_intrinsics.cx = cx;
+      mono_intrinsics.cy = cy;
+      mono_intrinsics.width = bgr_image.cols;
+      mono_intrinsics.height = bgr_image.rows;
+      depth_result = mono_depth_->infer(bgr_image, mono_intrinsics);
+#endif
+    } catch (const std::exception &e) {
+      LOG(ERROR) << "DA3 mono depth inference failed: " << e.what();
+      return;
+    }
+
+    const cv::Mat &depth = depth_result.depth;
+    if (depth.empty() || depth.type() != CV_32FC1) {
+      LOG_EVERY_N(WARNING, 30)
+          << "Skipping mono depth map update because DA3 returned an empty or "
+             "non-float depth map.";
+      return;
+    }
+
+    const int stride = std::max(1, mono_depth_params_.point_stride);
+    const int max_points =
+        std::max(0, mono_depth_params_.max_points_per_keyframe);
+    if (max_points == 0) {
+      return;
+    }
+
+    const gtsam::Pose3 smoother_T_body =
+        input.backend_output_->state_.at<Pose3>(target_pose_key);
+    const gtsam::Pose3 odom_T_body =
+        odom_states_.at<Pose3>(*target_frame_id);
+    const gtsam::Pose3 odom_T_smoother =
+        odom_T_body.compose(smoother_T_body.inverse());
+    const gtsam::Pose3 smoother_T_cam = smoother_T_body.compose(body_T_cam);
+    const gtsam::Pose3 odom_T_cam = odom_T_smoother.compose(smoother_T_cam);
+    const MonoDepthScaleEstimate scale_estimate = estimateMonoDepthScale(
+        frame, input.backend_output_->landmarks_in_local_window_, depth,
+        depth_result.sky_mask, smoother_T_cam.inverse());
+    if (scale_estimate.updated) {
+      mono_depth_scale_ = scale_estimate.scale;
+      mono_depth_scale_valid_ = true;
+    }
+    const double depth_scale =
+        mono_depth_scale_valid_ ? mono_depth_scale_ : 1.0;
+    this->setTimeNSec(timestamp_it->second);
+    this->drawScalar((map_ / odom_ / "mono_depth" / "scale").string(),
+                     depth_scale);
+    this->drawScalar((map_ / odom_ / "mono_depth" / "scale_pairs").string(),
+                     static_cast<double>(scale_estimate.inlier_pairs));
+    this->drawScalar((map_ / odom_ / "mono_depth" / "scale_log_rmse").string(),
+                     scale_estimate.log_rmse);
+
+    std::vector<Point3> candidate_points;
+    std::vector<Eigen::Vector4f> candidate_colors;
+
+    const int rows = std::min(depth.rows, bgr_image.rows);
+    const int cols = std::min(depth.cols, bgr_image.cols);
+    const bool has_sky_mask =
+        !depth_result.sky_mask.empty() && depth_result.sky_mask.rows >= rows &&
+        depth_result.sky_mask.cols >= cols;
+    const size_t candidate_reserve =
+        static_cast<size_t>(((rows + stride - 1) / stride) *
+                            ((cols + stride - 1) / stride));
+    candidate_points.reserve(candidate_reserve);
+    candidate_colors.reserve(candidate_reserve);
+    for (int v = 0; v < rows; v += stride) {
+      const float *depth_row = depth.ptr<float>(v);
+      const cv::Vec3b *color_row = bgr_image.ptr<cv::Vec3b>(v);
+      const uint8_t *sky_row =
+          has_sky_mask ? depth_result.sky_mask.ptr<uint8_t>(v) : nullptr;
+      for (int u = 0; u < cols; u += stride) {
+        if (sky_row != nullptr && sky_row[u] != 0u) {
+          continue;
+        }
+        const float raw_z = depth_row[u];
+        if (!std::isfinite(raw_z) || raw_z <= 0.0f) {
+          continue;
+        }
+        const double z = static_cast<double>(raw_z) * depth_scale;
+        if (!std::isfinite(z) || z < mono_depth_params_.min_depth_m ||
+            z > mono_depth_params_.max_depth_m) {
+          continue;
+        }
+
+        const double x = (static_cast<double>(u) - cx) * z / fx;
+        const double y = (static_cast<double>(v) - cy) * z / fy;
+        const Point3 point_odom = odom_T_cam.transformFrom(Point3(x, y, z));
+        const cv::Vec3b &bgr = color_row[u];
+        candidate_points.push_back(point_odom);
+        candidate_colors.emplace_back(static_cast<float>(bgr[2]),
+                                      static_cast<float>(bgr[1]),
+                                      static_cast<float>(bgr[0]),
+                                      180.0f);
+      }
+    }
+
+    const size_t candidate_count = candidate_points.size();
+    std::vector<Point3> new_points;
+    std::vector<Eigen::Vector4f> new_colors;
+    if (static_cast<int>(candidate_count) <= max_points) {
+      new_points = std::move(candidate_points);
+      new_colors = std::move(candidate_colors);
+    } else {
+      new_points.reserve(static_cast<size_t>(max_points));
+      new_colors.reserve(static_cast<size_t>(max_points));
+      for (int i = 0; i < max_points; ++i) {
+        const size_t idx =
+            std::min(candidate_count - 1,
+                     (static_cast<size_t>(i) * candidate_count) /
+                         static_cast<size_t>(max_points));
+        new_points.push_back(candidate_points[idx]);
+        new_colors.push_back(candidate_colors[idx]);
+      }
+    }
+
+    if (new_points.empty()) {
+      this->setTimeNSec(input.timestamp_);
+      return;
+    }
+
+    mono_depth_map_points_.insert(
+        mono_depth_map_points_.end(), new_points.begin(), new_points.end());
+    mono_depth_map_colors_.insert(
+        mono_depth_map_colors_.end(), new_colors.begin(), new_colors.end());
+
+    const int max_map_points = std::max(0, mono_depth_params_.max_map_points);
+    if (max_map_points > 0 &&
+        static_cast<int>(mono_depth_map_points_.size()) > max_map_points) {
+      const size_t excess =
+          mono_depth_map_points_.size() - static_cast<size_t>(max_map_points);
+      mono_depth_map_points_.erase(mono_depth_map_points_.begin(),
+                                   mono_depth_map_points_.begin() + excess);
+      mono_depth_map_colors_.erase(mono_depth_map_colors_.begin(),
+                                   mono_depth_map_colors_.begin() + excess);
+    }
+
+    this->drawPoints(map_ / odom_ / "mono_depth" / "map",
+                     mono_depth_map_points_,
+                     mono_depth_map_colors_,
+                     {mono_depth_params_.point_radius},
+                     {},
+                     false);
+    this->setTimeNSec(input.timestamp_);
+    last_mono_depth_frame_id_ = *target_frame_id;
+    LOG_EVERY_N(INFO, 10)
+        << "Mono depth map points: " << mono_depth_map_points_.size()
+        << " (" << new_points.size() << "/" << candidate_count
+        << " keyframe points for delayed frame " << *target_frame_id
+        << "), scale: " << depth_scale << " from "
+        << scale_estimate.inlier_pairs << "/"
+        << scale_estimate.candidate_pairs
+        << " landmark depth pairs, log rmse: " << scale_estimate.log_rmse;
   }
 
   void checkAndSaveTrajectories(const gtsam::Values &states = gtsam::Values()) {
@@ -606,6 +918,220 @@ public:
   }
 
 private:
+  struct MonoDepthScaleEstimate {
+    double scale = 1.0;
+    double log_rmse = 0.0;
+    size_t candidate_pairs = 0u;
+    size_t inlier_pairs = 0u;
+    bool updated = false;
+  };
+
+  static bool sampleDepthBilinear(const cv::Mat &depth,
+                                  const cv::Point2f &px,
+                                  float *sampled_depth) {
+    if (sampled_depth == nullptr || depth.empty() ||
+        depth.type() != CV_32FC1 || !std::isfinite(px.x) ||
+        !std::isfinite(px.y) || px.x < 0.0f || px.y < 0.0f ||
+        px.x > static_cast<float>(depth.cols - 1) ||
+        px.y > static_cast<float>(depth.rows - 1)) {
+      return false;
+    }
+
+    const int x0 = static_cast<int>(std::floor(px.x));
+    const int y0 = static_cast<int>(std::floor(px.y));
+    const int x1 = std::min(x0 + 1, depth.cols - 1);
+    const int y1 = std::min(y0 + 1, depth.rows - 1);
+    const float wx = px.x - static_cast<float>(x0);
+    const float wy = px.y - static_cast<float>(y0);
+
+    const float z00 = depth.at<float>(y0, x0);
+    const float z01 = depth.at<float>(y0, x1);
+    const float z10 = depth.at<float>(y1, x0);
+    const float z11 = depth.at<float>(y1, x1);
+    if (!std::isfinite(z00) || !std::isfinite(z01) || !std::isfinite(z10) ||
+        !std::isfinite(z11)) {
+      return false;
+    }
+
+    *sampled_depth = (1.0f - wx) * (1.0f - wy) * z00 +
+                     wx * (1.0f - wy) * z01 +
+                     (1.0f - wx) * wy * z10 + wx * wy * z11;
+    return true;
+  }
+
+  static bool isSkyPixel(const cv::Mat &sky_mask, const cv::Point2f &px) {
+    if (sky_mask.empty() || sky_mask.type() != CV_8UC1 ||
+        !std::isfinite(px.x) || !std::isfinite(px.y) || px.x < 0.0f ||
+        px.y < 0.0f || px.x > static_cast<float>(sky_mask.cols - 1) ||
+        px.y > static_cast<float>(sky_mask.rows - 1)) {
+      return false;
+    }
+
+    const int u = std::min(std::max(static_cast<int>(std::lround(px.x)), 0),
+                           sky_mask.cols - 1);
+    const int v = std::min(std::max(static_cast<int>(std::lround(px.y)), 0),
+                           sky_mask.rows - 1);
+    return sky_mask.at<uint8_t>(v, u) != 0u;
+  }
+
+  static double medianValue(std::vector<double> values) {
+    CHECK(!values.empty());
+    const size_t middle = values.size() / 2u;
+    std::nth_element(values.begin(), values.begin() + middle, values.end());
+    double median = values[middle];
+    if (values.size() % 2u == 0u) {
+      std::nth_element(values.begin(), values.begin() + middle - 1u,
+                       values.end());
+      median = 0.5 * (median + values[middle - 1u]);
+    }
+    return median;
+  }
+
+  void cacheMonoDepthFrame(const VIO::VisualizerInput &input) {
+    const Frame *frame = input.frontend_output_->getTrackingFrame();
+    if (frame == nullptr || frame->img_.empty()) {
+      return;
+    }
+
+    CachedMonoDepthFrame cached_frame;
+    cached_frame.image = frame->img_.clone();
+    cached_frame.intrinsics = frame->cam_param_.intrinsics_;
+    cached_frame.body_T_cam = frame->cam_param_.body_Pose_cam_;
+    cached_frame.keypoints = frame->keypoints_;
+    cached_frame.landmarks = frame->landmarks_;
+    mono_depth_frame_cache_[input.backend_output_->cur_kf_id_] =
+        std::move(cached_frame);
+
+    while (mono_depth_frame_cache_.size() > kMonoDepthFrameCacheSize) {
+      mono_depth_frame_cache_.erase(mono_depth_frame_cache_.begin());
+    }
+  }
+
+  static std::optional<FrameId>
+  findOldestSmootherPoseFrameId(const gtsam::Values &state) {
+    std::optional<FrameId> oldest_frame_id = std::nullopt;
+    for (auto key : state.keys()) {
+      const Symbol symbol(key);
+      if (symbol.chr() != kPoseSymbolChar) {
+        continue;
+      }
+      const FrameId frame_id = symbol.index();
+      if (!oldest_frame_id.has_value() || frame_id < *oldest_frame_id) {
+        oldest_frame_id = frame_id;
+      }
+    }
+    return oldest_frame_id;
+  }
+
+  MonoDepthScaleEstimate estimateMonoDepthScale(
+      const CachedMonoDepthFrame &frame,
+      const PointsWithIdMap &landmarks,
+      const cv::Mat &depth,
+      const cv::Mat &sky_mask,
+      const gtsam::Pose3 &cam_T_landmark_frame) const {
+    static constexpr size_t kMinPairs = 8u;
+    static constexpr double kMinScale = 0.05;
+    static constexpr double kMaxScale = 20.0;
+    static constexpr double kRatioInlierFactor = 2.0;
+    const double log_ratio_inlier_threshold =
+        std::log(kRatioInlierFactor);
+
+    MonoDepthScaleEstimate estimate;
+    estimate.scale = mono_depth_scale_valid_ ? mono_depth_scale_ : 1.0;
+    if (frame.keypoints.empty() || frame.landmarks.empty() || landmarks.empty() ||
+        depth.empty() || depth.type() != CV_32FC1) {
+      return estimate;
+    }
+
+    std::vector<double> log_ratios;
+    const size_t feature_count =
+        std::min(frame.keypoints.size(), frame.landmarks.size());
+    log_ratios.reserve(feature_count);
+
+    for (size_t i = 0u; i < feature_count; ++i) {
+      const LandmarkId lmk_id = frame.landmarks[i];
+      if (lmk_id == -1) {
+        continue;
+      }
+      const auto lmk_it = landmarks.find(lmk_id);
+      if (lmk_it == landmarks.end()) {
+        continue;
+      }
+
+      const Point3 landmark_cam =
+          cam_T_landmark_frame.transformFrom(lmk_it->second);
+      const double landmark_depth = landmark_cam.z();
+      if (!std::isfinite(landmark_depth) ||
+          landmark_depth < mono_depth_params_.min_depth_m ||
+          landmark_depth > mono_depth_params_.max_depth_m) {
+        continue;
+      }
+
+      const cv::Point2f &px = frame.keypoints[i];
+      if (isSkyPixel(sky_mask, px)) {
+        continue;
+      }
+
+      float da3_depth = 0.0f;
+      if (!sampleDepthBilinear(depth, px, &da3_depth) ||
+          !std::isfinite(da3_depth) || da3_depth <= 0.0f) {
+        continue;
+      }
+
+      const double da3_depth_d = static_cast<double>(da3_depth);
+      log_ratios.push_back(std::log(landmark_depth) - std::log(da3_depth_d));
+    }
+
+    estimate.candidate_pairs = log_ratios.size();
+    if (log_ratios.size() < kMinPairs) {
+      return estimate;
+    }
+
+    const double median_log_ratio = medianValue(log_ratios);
+    if (!std::isfinite(median_log_ratio)) {
+      return estimate;
+    }
+
+    double sum_log_ratio = 0.0;
+    for (const double log_ratio : log_ratios) {
+      if (std::abs(log_ratio - median_log_ratio) >
+          log_ratio_inlier_threshold) {
+        continue;
+      }
+      sum_log_ratio += log_ratio;
+      ++estimate.inlier_pairs;
+    }
+
+    if (estimate.inlier_pairs < kMinPairs) {
+      return estimate;
+    }
+
+    // Minimize sum_i (log(scale * da3_i) - log(landmark_i))^2.
+    const double log_scale =
+        sum_log_ratio / static_cast<double>(estimate.inlier_pairs);
+    const double scale = std::exp(log_scale);
+    if (!std::isfinite(scale) || scale < kMinScale || scale > kMaxScale) {
+      return estimate;
+    }
+
+    double sum_squared_log_error = 0.0;
+    for (const double log_ratio : log_ratios) {
+      if (std::abs(log_ratio - median_log_ratio) >
+          log_ratio_inlier_threshold) {
+        continue;
+      }
+      const double residual = log_scale - log_ratio;
+      sum_squared_log_error += residual * residual;
+    }
+
+    estimate.scale = scale;
+    estimate.log_rmse =
+        std::sqrt(sum_squared_log_error /
+                  static_cast<double>(estimate.inlier_pairs));
+    estimate.updated = true;
+    return estimate;
+  }
+
   std::filesystem::path baselink_;
   std::filesystem::path map_;
   std::filesystem::path odom_;
@@ -627,6 +1153,19 @@ private:
   std::string result_dir_{};
 
   PointsWithIdMap landmarks_in_odom_;
+  std::vector<Pose3> camera_traj_;
+  MonoDepthParams mono_depth_params_;
+#ifdef HAVE_TENSORRT
+  std::unique_ptr<xfeat::DepthAnythingV3TRT> mono_depth_;
+#endif
+  bool mono_depth_failed_ = false;
+  std::optional<FrameId> last_mono_depth_frame_id_ = std::nullopt;
+  std::optional<FrameId> last_oldest_mono_depth_frame_id_ = std::nullopt;
+  double mono_depth_scale_ = 1.0;
+  bool mono_depth_scale_valid_ = false;
+  std::map<FrameId, CachedMonoDepthFrame> mono_depth_frame_cache_;
+  std::vector<Point3> mono_depth_map_points_;
+  std::vector<Eigen::Vector4f> mono_depth_map_colors_;
 
   FrameIDTimestampMap timestamp_map_;
 
@@ -638,6 +1177,7 @@ private:
   // Timer for saving trajectory files
   std::chrono::steady_clock::time_point last_save_time_;
   static constexpr std::chrono::seconds save_interval_{10};
+  static constexpr size_t kMonoDepthFrameCacheSize = 256u;
 };
 
 } // namespace VIO

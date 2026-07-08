@@ -24,7 +24,6 @@ private:
 private:
   rclcpp::CallbackGroup::SharedPtr callback_group_imu_;
   rclcpp::Subscription<Imu>::SharedPtr imu_sub_;
-  rclcpp::Time last_imu_timestamp_;
 };
 
 }  // namespace interfaces

@@ -4,15 +4,13 @@ klt_win_size: 24
 klt_max_iter: 30
 klt_max_level: 4
 klt_eps: 0.1
-maxFeatureAge: 25
+maxFeatureAge: 1000
 
 # Detector Params
 # 0: FAST
 # 1: ORB
 # 2: AGAST
 # 3: GFTT, aka Good Features To Track
-# 4: XFEAT
-# 5: GFTT + XFEAT
 feature_detector_type: 4
 maxFeaturesPerFrame: 1000
 
@@ -27,7 +25,7 @@ k: 0.04
 fast_thresh: 10
 
 equalizeImage: 0
-nominalBaseline: 0.11
+nominalBaseline: 0.05
 toleranceTemplateMatching: 0.15
 templ_cols: 101 #must be odd
 templ_rows: 11
@@ -35,6 +33,7 @@ stripe_extra_rows: 0
 minPointDist: 0.5
 maxPointDist: 10
 bidirectionalMatching: 0
+rectifiedInputs: 0
 
 # Non-maximum suppression params
 max_nr_keypoints_before_anms: 1000
@@ -46,7 +45,7 @@ binning_mask: []
 
 # Subpixel corner refinement for the monocular case
 enable_subpixel_corner_finder: 0
-max_iters: 40
+max_iters: 20
 epsilon_error: 0.001
 window_size: 10
 zero_zone: -1
@@ -57,17 +56,17 @@ useRANSAC: 1
 minNrMonoInliers: 10
 minNrStereoInliers: 5
 ransac_threshold_mono: 1e-06
-ransac_threshold_stereo: 0.8
-ransac_use_1point_stereo: 0
-ransac_use_2point_mono: 0
-ransac_max_iterations: 500
+ransac_threshold_stereo: 1
+ransac_use_1point_stereo: 1
+ransac_use_2point_mono: 1
+ransac_max_iterations: 100
 ransac_probability: 0.995
 ransac_randomize: 0
 min_intra_keyframe_time: 0.2
-max_intra_keyframe_time: 5.0
-max_disparity_since_lkf: 1000 #large value to disable
-minNumberFeatures: 0
-useStereoTracking: 1
+max_intra_keyframe_time: 1.0
+max_disparity_since_lkf: 200 #large value to disable
+minNumberFeatures: 50
+useStereoTracking: 0
 disparityThreshold: 0.5
 # Type of optical flow predictor to aid feature tracking:
 # 0: Static - assumes no optical flow between images (aka static camera).
@@ -75,7 +74,7 @@ disparityThreshold: 0.5
 optical_flow_predictor_type: 1
 
 # 2D-2D pose estimation method
-use_2d2d_tracking: 0
+use_2d2d_tracking: 1
 2d2d_algorithm: 1 # Nister
 optimize_2d2d_pose_from_inliers: 0
 
@@ -86,45 +85,48 @@ optimize_3d3d_pose_from_inliers: 0
 # 2D-3D pose estimation method
 use_pnp_tracking: 0
 pnp_algorithm: 3 # EPNP
-min_pnp_inliers: 20
+min_pnp_inliers: 10
 ransac_threshold_pnp: 1.0 # pixels
 optimize_2d3d_pose_from_inliers: 0
 
-# XFeat detector and LightGlue descriptor tracker.
-xfeat_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/xfeat_320x224.onnx
-interp_bilinear_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/interpolator_bilinear_320x224.onnx
-interp_bicubic_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/interpolator_bicubic_320x224.onnx
-interp_nearest_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/interpolator_nearest_320x224.onnx
+# xfeat params
+xfeat_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/xfeat_640x480.onnx
+interp_bilinear_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/interpolator_bilinear_640x480.onnx
+interp_bicubic_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/interpolator_bicubic_640x480.onnx
+interp_nearest_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/interpolator_nearest_640x480.onnx
 xfeat_use_gpu: 1
-xfeat_use_of_points: 1
+matcher_type: 0 # 0: Brute Force, 1: FLANN, 2: LighterGlue
 
-# 0: OpticalFlow, 1: LighterGlue, 2: Flann, 3: GpuBFMatcher
-feature_tracker_type: 1
-desc_tracking_mode: 2 # 0: VILIB only, 1: LightGlue only, 2: VILIB + LightGlue
-num_features: 500
-lg_model_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/lg_320x224_dyn.onnx
-gpu_bf_min_sim: 0.3
+feature_tracker_type: 0 # 0: OpticalFlow, 1: LighterGlue 2: Flann 3: GpuBFMatcher 4: GpuBF+RANSAC
+desc_tracking_mode: 0 # 0: VILIB only, 1: LightGlue only, 2: VILIB + LightGlue
+num_features: 1000
+lg_model_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/lg_640x480_dyn.onnx
+gpu_bf_min_sim: 0.3 # Minimum similarity for GpuBFMatcher
 search_radius: 100
+
 track_on_keyframe: 1
+
 min_lmk_merge_sim: 0.7
-max_lmk_merge_px: 1
+max_lmk_merge_px: 3
 
-# Keep VILIB as the optical-flow tracker.
-vilib_cell_width: 32
-vilib_cell_height: 32
-optical_flow_downsample: 0
-optical_flow_downsample_scale: 1.0
-optical_flow_type: 0
-opencv_of_min_features_threshold: 300
-opencv_of_quality_level: 0.01
-opencv_of_min_distance: 30.0
-opencv_of_use_fwd_bwd_check: false
-opencv_of_fwd_bwd_threshold: 1.0
-
-kf_queue_size: 10
+kf_queue_size: 0
 rematch_threshold: 0.5
 
-# EuRoC image_raw topics are not pre-rectified.
-rectifiedInputs: 0
+vilib_cell_width: 64
+vilib_cell_height: 64
+optical_flow_downsample: 1
+optical_flow_downsample_scale: 0.5
+
+xfeat_use_of_points: 1
+
 use_sky_segmentation_filter: 0
 sky_seg_engine_path: /home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/skyseg.engine
+
+optical_flow_type: 0  # 0 = VILIB (GPU), 1 = OpenCV (CPU)
+
+# Optional OpenCV optical flow tuning:
+opencv_of_min_features_threshold: 300
+opencv_of_quality_level: 0.01
+opencv_of_min_distance: 20.0
+opencv_of_use_fwd_bwd_check: false # this runs too slow
+opencv_of_fwd_bwd_threshold: 1.0

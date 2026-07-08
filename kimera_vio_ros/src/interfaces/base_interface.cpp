@@ -50,6 +50,28 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       "rerun_host", "rerun+http://127.0.0.1:9876/proxy");
   const auto use_rerun_visualizer =
       node_->declare_parameter<bool>("use_rerun_visualizer", FLAGS_visualize);
+  VIO::RerunVisualizer::MonoDepthParams mono_depth_params;
+  mono_depth_params.enabled =
+      node_->declare_parameter<bool>("mono_depth.enabled", false);
+  mono_depth_params.engine_path =
+      node_->declare_parameter<std::string>("mono_depth.engine_path", "");
+  mono_depth_params.device_id =
+      node_->declare_parameter<int>("mono_depth.device_id", 0);
+  mono_depth_params.point_stride =
+      node_->declare_parameter<int>("mono_depth.point_stride", 4);
+  mono_depth_params.max_points_per_keyframe =
+      node_->declare_parameter<int>("mono_depth.max_points_per_keyframe", 5000);
+  mono_depth_params.max_map_points =
+      node_->declare_parameter<int>("mono_depth.max_map_points", 200000);
+  mono_depth_params.min_depth_m =
+      node_->declare_parameter<double>("mono_depth.min_depth_m", 0.1);
+  mono_depth_params.max_depth_m =
+      node_->declare_parameter<double>("mono_depth.max_depth_m", 30.0);
+  mono_depth_params.point_radius =
+      static_cast<float>(node_->declare_parameter<double>(
+          "mono_depth.point_radius", 0.005));
+  mono_depth_params.verbose =
+      node_->declare_parameter<bool>("mono_depth.verbose", false);
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
   if (use_rerun_visualizer) {
     rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
@@ -59,7 +81,8 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
             .map_frame_id = map_frame_id_,
             .recording_id = rerun_recording_id,
             .result_dir = rerun_result_dir,
-            .rerun_host = rerun_host});
+            .rerun_host = rerun_host,
+            .mono_depth = mono_depth_params});
   }
 
   vio_pipeline_.reset();

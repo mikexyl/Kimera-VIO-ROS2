@@ -6,8 +6,7 @@ namespace kimera_vio_ros {
 namespace interfaces {
 
 MonoInterface::MonoInterface(rclcpp::Node::SharedPtr &node)
-    : BaseInterface(node), ImageInterface(node), frame_count_(VIO::FrameId(0)),
-      last_mono_timestamp_(0) {
+    : BaseInterface(node), ImageInterface(node), frame_count_(VIO::FrameId(0)) {
   this->registerLeftFrameCallback(std::bind(&VIO::Pipeline::fillLeftFrameQueue,
                                             vio_pipeline_.get(),
                                             std::placeholders::_1));
@@ -22,8 +21,6 @@ MonoInterface::MonoInterface(rclcpp::Node::SharedPtr &node)
   auto mono_opt = rclcpp::SubscriptionOptions();
   mono_opt.callback_group = callback_group_mono_;
 
-  int queue_size_ = 10;
-
   auto info_qos = rclcpp::SystemDefaultsQoS();
   std::string info_topic = "camera_info";
   info_sub_ = std::make_shared<message_filters::Subscriber<CameraInfo>>(
@@ -31,6 +28,7 @@ MonoInterface::MonoInterface(rclcpp::Node::SharedPtr &node)
   info_sub_->registerCallback(&MonoInterface::mono_info_cb, this);
 
   auto image_qos = rclcpp::SensorDataQoS();
+  image_qos.keep_last(1);
   std::string image_topic = "image";
   
   // TODO: Assign message filter subscribers to callback_group_mono_
@@ -77,20 +75,17 @@ void MonoInterface::mono_info_cb(
 
 void MonoInterface::mono_image_cb(const Image::SharedPtr msg) {
   rclcpp::Time stamp(msg->header.stamp);
-  if (stamp.nanoseconds() > last_mono_timestamp_.nanoseconds()) {
-    static const VIO::CameraParams &cam_info =
-        vio_params_->camera_params_.at(0);
+  static const VIO::CameraParams &cam_info =
+      vio_params_->camera_params_.at(0);
 
-    const VIO::Timestamp &timestamp = stamp.nanoseconds();
+  const VIO::Timestamp timestamp = stamp.nanoseconds();
 
-    auto img = readRosImage(msg);
+  auto img = readRosImage(msg);
 
-    left_frame_callback_(std::make_unique<VIO::Frame>(
-        frame_count_, timestamp, cam_info, img));
-    // LOG_EVERY_N(INFO, 30) << "Done: KimeraVioNode::mono_image_cb";
-    frame_count_++;
-  }
-  last_mono_timestamp_ = stamp;
+  left_frame_callback_(std::make_unique<VIO::Frame>(
+      frame_count_, timestamp, cam_info, img));
+  // LOG_EVERY_N(INFO, 30) << "Done: KimeraVioNode::mono_image_cb";
+  frame_count_++;
 }
 
 } // namespace interfaces

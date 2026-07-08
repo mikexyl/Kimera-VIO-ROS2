@@ -43,7 +43,6 @@ private:
   bool force_same_image_timestamp_ = true;
 
   VIO::FrameId frame_count_;
-  rclcpp::Time last_stereo_timestamp_;
 };
 
 } // namespace interfaces

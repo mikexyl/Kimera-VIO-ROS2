@@ -1,14 +1,27 @@
+import os
+from pathlib import Path
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    workspace_root = Path(os.environ.get('SB_SLAM_ROS2_WS', os.getcwd()))
+    default_mono_depth_engine = str(
+        workspace_root /
+        'src' /
+        'xfeat-cpp' /
+        'onnx_model' /
+        'DA3METRIC-LARGE_280x504_fp16.engine'
+    )
+
     dataset_arg = DeclareLaunchArgument(
         'dataset_name',
-        default_value='Euroc',
+        default_value='EurocMono',
         description='Name of the dataset whose parameters should be used.'
     )
     parallel_arg = DeclareLaunchArgument(
@@ -143,6 +156,76 @@ def generate_launch_description():
         default_value='',
         description='Optional directory for Rerun side outputs. Empty disables file output.'
     )
+    mono_depth_enabled_arg = DeclareLaunchArgument(
+        'mono_depth.enabled',
+        default_value='false',
+        description='Run DA3 monocular depth on mono keyframes and log an accumulated point cloud to Rerun.'
+    )
+    mono_depth_engine_path_arg = DeclareLaunchArgument(
+        'mono_depth.engine_path',
+        default_value=default_mono_depth_engine,
+        description='TensorRT engine path for DA3 monocular depth.'
+    )
+    mono_depth_device_id_arg = DeclareLaunchArgument(
+        'mono_depth.device_id',
+        default_value='0',
+        description='CUDA device id for DA3 monocular depth.'
+    )
+    mono_depth_point_stride_arg = DeclareLaunchArgument(
+        'mono_depth.point_stride',
+        default_value='4',
+        description='Pixel sampling stride for DA3 point cloud back-projection.'
+    )
+    mono_depth_max_points_per_keyframe_arg = DeclareLaunchArgument(
+        'mono_depth.max_points_per_keyframe',
+        default_value='5000',
+        description='Maximum DA3 point cloud samples added per keyframe.'
+    )
+    mono_depth_max_map_points_arg = DeclareLaunchArgument(
+        'mono_depth.max_map_points',
+        default_value='200000',
+        description='Maximum accumulated DA3 map points kept in Rerun.'
+    )
+    mono_depth_min_depth_arg = DeclareLaunchArgument(
+        'mono_depth.min_depth_m',
+        default_value='0.1',
+        description='Minimum valid DA3 depth in meters.'
+    )
+    mono_depth_max_depth_arg = DeclareLaunchArgument(
+        'mono_depth.max_depth_m',
+        default_value='30.0',
+        description='Maximum valid DA3 depth in meters.'
+    )
+    mono_depth_point_radius_arg = DeclareLaunchArgument(
+        'mono_depth.point_radius',
+        default_value='0.005',
+        description='Rerun point radius for the DA3 map.'
+    )
+    mono_depth_verbose_arg = DeclareLaunchArgument(
+        'mono_depth.verbose',
+        default_value='false',
+        description='Enable verbose DA3 TensorRT logging.'
+    )
+    rosbag_play_arg = DeclareLaunchArgument(
+        'rosbag_play',
+        default_value='false',
+        description='Start ros2 bag playback from this launch file.'
+    )
+    rosbag_path_arg = DeclareLaunchArgument(
+        'rosbag_path',
+        default_value='',
+        description='ROS2 bag directory to play when rosbag_play is true.'
+    )
+    rosbag_play_delay_arg = DeclareLaunchArgument(
+        'rosbag_play_delay',
+        default_value='5.0',
+        description='Seconds to wait before starting ros2 bag playback.'
+    )
+    rosbag_rate_arg = DeclareLaunchArgument(
+        'rosbag_rate',
+        default_value='1.0',
+        description='ros2 bag play rate.'
+    )
 
     node_arguments = [
         ['--use_lcd=', LaunchConfiguration('use_lcd')],
@@ -180,6 +263,16 @@ def generate_launch_description():
         'rerun_host': LaunchConfiguration('rerun_host'),
         'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
         'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
+        'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
+        'mono_depth.engine_path': LaunchConfiguration('mono_depth.engine_path'),
+        'mono_depth.device_id': LaunchConfiguration('mono_depth.device_id'),
+        'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
+        'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
+        'mono_depth.max_map_points': LaunchConfiguration('mono_depth.max_map_points'),
+        'mono_depth.min_depth_m': LaunchConfiguration('mono_depth.min_depth_m'),
+        'mono_depth.max_depth_m': LaunchConfiguration('mono_depth.max_depth_m'),
+        'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
+        'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
     }]
 
     remappings = [
@@ -214,6 +307,28 @@ def generate_launch_description():
         # prefix=['kitty -e gdb -ex run --args'],
     )
 
+    rosbag_play = TimerAction(
+        period=LaunchConfiguration('rosbag_play_delay'),
+        actions=[
+            ExecuteProcess(
+                condition=IfCondition(LaunchConfiguration('rosbag_play')),
+                cmd=[
+                    'ros2',
+                    'bag',
+                    'play',
+                    LaunchConfiguration('rosbag_path'),
+                    '--clock',
+                    '-r',
+                    LaunchConfiguration('rosbag_rate'),
+                    '--topics',
+                    LaunchConfiguration('topic.imu.data'),
+                    LaunchConfiguration('topic.image'),
+                ],
+                output='screen',
+            )
+        ],
+    )
+
     return LaunchDescription([
         dataset_arg,
         parallel_arg,
@@ -241,5 +356,20 @@ def generate_launch_description():
         rerun_host_arg,
         rerun_recording_id_arg,
         rerun_result_dir_arg,
+        mono_depth_enabled_arg,
+        mono_depth_engine_path_arg,
+        mono_depth_device_id_arg,
+        mono_depth_point_stride_arg,
+        mono_depth_max_points_per_keyframe_arg,
+        mono_depth_max_map_points_arg,
+        mono_depth_min_depth_arg,
+        mono_depth_max_depth_arg,
+        mono_depth_point_radius_arg,
+        mono_depth_verbose_arg,
+        rosbag_play_arg,
+        rosbag_path_arg,
+        rosbag_play_delay_arg,
+        rosbag_rate_arg,
         kimera_vio_node,
+        rosbag_play,
     ])

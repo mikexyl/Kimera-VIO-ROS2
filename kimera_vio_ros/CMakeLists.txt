@@ -34,6 +34,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(aria_viz REQUIRED)
 find_package(aria_common REQUIRED)
+find_package(xfeat-cpp REQUIRED)
 find_package(pose_graph_tools_msgs REQUIRED)
 find_library(SYSTEM_CURL_LIBRARY
   NAMES curl
@@ -84,7 +85,7 @@ rclcpp_components_register_nodes(${library_name}
   "kimera_vio_ros::components::StereoVio"
   "kimera_vio_ros::components::MonoVio")
 target_link_libraries(${library_name}
-  kimera_vio aria_common aria_viz ${SYSTEM_CURL_LIBRARY})
+  kimera_vio aria_common aria_viz xfeat-cpp::xfeat-cpp ${SYSTEM_CURL_LIBRARY})
 
 add_executable(stereo_vio_node
   src/stereo_vio_node.cpp)
