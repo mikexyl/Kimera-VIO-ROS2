@@ -39,8 +39,8 @@
   <arg name="verbosity"    default="0" />
   <!-- Visualize pipeline output in OpenCV. -->
   <!-- Note that this is duplicated from the flags file -->
-  <arg name="visualize"    default="true" />
-  <arg name="use_rerun_visualizer" default="false"/>
+  <arg name="visualize"    default="false" />
+  <arg name="use_rerun_visualizer" default="true"/>
   <arg name="rerun_host" default="rerun+http://127.0.0.1:9876/proxy"/>
   <arg name="rerun_recording_id" default=""/>
   <arg name="rerun_result_dir" default=""/>

@@ -4,6 +4,7 @@
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
+#include <kimera-vio/common/DenseMapTypes.h>
 #include <kimera-vio/common/MonoDepthTypes.h>
 #include <kimera-vio/pipeline/MonoImuPipeline.h>
 #include <kimera-vio/pipeline/StereoImuPipeline.h>
@@ -71,6 +72,17 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
           "mono_depth.point_radius", 0.005));
   mono_depth_params.verbose =
       node_->declare_parameter<bool>("mono_depth.verbose", false);
+  VIO::DenseMapParams& dense_map_params = vio_params_->dense_map_params_;
+  dense_map_params.enabled =
+      node_->declare_parameter<bool>("dense_map.enabled", true);
+  dense_map_params.backend = VIO::denseMapBackendFromString(
+      node_->declare_parameter<std::string>("dense_map.backend",
+                                           "gaussian_voxel_map"));
+  dense_map_params.voxel_resolution =
+      node_->declare_parameter<double>("dense_map.voxel_resolution", 0.15);
+  dense_map_params.point_radius =
+      static_cast<float>(node_->declare_parameter<double>(
+          "dense_map.point_radius", 0.025));
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
   if (use_rerun_visualizer) {
     rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(

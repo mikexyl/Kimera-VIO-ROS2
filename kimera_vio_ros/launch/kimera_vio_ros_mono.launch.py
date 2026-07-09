@@ -138,12 +138,12 @@ def generate_launch_description():
     )
     visualize_arg = DeclareLaunchArgument(
         'visualize',
-        default_value='true',
+        default_value='false',
         description='Enable OpenCV visualizations if true.'
     )
     use_rerun_visualizer_arg = DeclareLaunchArgument(
         'use_rerun_visualizer',
-        default_value='false',
+        default_value='true',
         description='Enable the Rerun visualizer independently of OpenCV visualizations.'
     )
     rerun_host_arg = DeclareLaunchArgument(
@@ -205,6 +205,26 @@ def generate_launch_description():
         'mono_depth.verbose',
         default_value='false',
         description='Enable verbose DA3 TensorRT logging.'
+    )
+    dense_map_enabled_arg = DeclareLaunchArgument(
+        'dense_map.enabled',
+        default_value='true',
+        description='Insert aligned mono depth keyframe clouds into the dense map backend.'
+    )
+    dense_map_backend_arg = DeclareLaunchArgument(
+        'dense_map.backend',
+        default_value='gaussian_voxel_map',
+        description='Dense map backend implementation.'
+    )
+    dense_map_voxel_resolution_arg = DeclareLaunchArgument(
+        'dense_map.voxel_resolution',
+        default_value='0.15',
+        description='Voxel resolution in meters for gaussian_voxel_map.'
+    )
+    dense_map_point_radius_arg = DeclareLaunchArgument(
+        'dense_map.point_radius',
+        default_value='0.025',
+        description='Rerun point radius for dense map visualization.'
     )
     rosbag_play_arg = DeclareLaunchArgument(
         'rosbag_play',
@@ -272,6 +292,10 @@ def generate_launch_description():
         'mono_depth.max_depth_m': LaunchConfiguration('mono_depth.max_depth_m'),
         'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
+        'dense_map.enabled': LaunchConfiguration('dense_map.enabled'),
+        'dense_map.backend': LaunchConfiguration('dense_map.backend'),
+        'dense_map.voxel_resolution': LaunchConfiguration('dense_map.voxel_resolution'),
+        'dense_map.point_radius': LaunchConfiguration('dense_map.point_radius'),
     }]
 
     remappings = [
@@ -381,6 +405,10 @@ def generate_launch_description():
         mono_depth_max_depth_arg,
         mono_depth_point_radius_arg,
         mono_depth_verbose_arg,
+        dense_map_enabled_arg,
+        dense_map_backend_arg,
+        dense_map_voxel_resolution_arg,
+        dense_map_point_radius_arg,
         rosbag_play_arg,
         rosbag_path_arg,
         rosbag_play_delay_arg,

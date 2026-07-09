@@ -230,7 +230,7 @@ public:
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
-    LOG(INFO) << "Backend output timestamp: " << input.timestamp_;
+    VLOG(2) << "Backend output timestamp: " << input.timestamp_;
 
     odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
     odom_states_.insert(input.backend_output_->cur_kf_id_,
@@ -257,6 +257,7 @@ public:
     }
 
     drawMonoDepthMap(input);
+    drawDenseMap(input);
 
     Landmarks lmks_vec;
     // convert landmark id->landmark map to vector
@@ -433,12 +434,72 @@ public:
         static_cast<double>(mono_depth_map_output->scale_inlier_pairs));
     this->drawScalar((map_ / odom_ / "mono_depth" / "scale_log_rmse").string(),
                      mono_depth_map_output->scale_log_rmse);
-    this->drawPoints(map_ / odom_ / "mono_depth" / "map",
-                     mono_depth_map_output->accumulated_map,
-                     mono_depth_map_output->accumulated_colors,
-                     {mono_depth_map_output->point_radius},
-                     {},
-                     false);
+    std::vector<Eigen::Vector3f> points;
+    std::vector<rerun::Color> colors;
+    points.reserve(mono_depth_map_output->accumulated_map.size());
+    colors.reserve(mono_depth_map_output->accumulated_colors.size());
+    for (std::size_t i = 0u; i < mono_depth_map_output->accumulated_map.size();
+         ++i) {
+      points.push_back(mono_depth_map_output->accumulated_map[i].cast<float>());
+      if (i < mono_depth_map_output->accumulated_colors.size()) {
+        const Eigen::Vector4f& color = mono_depth_map_output->accumulated_colors[i];
+        colors.emplace_back(color.x(), color.y(), color.z(), color.w());
+      } else {
+        colors.emplace_back(180, 180, 180, 180);
+      }
+    }
+    if (!points.empty()) {
+      rerun::Collection<rerun::components::Radius> radii;
+      radii.take_ownership(
+          rerun::components::Radius(mono_depth_map_output->point_radius));
+      this->rec()->log_with_static((map_ / odom_ / "mono_depth" / "map").string(),
+                                   false,
+                                   rerun::Points3D(points)
+                                       .with_colors(colors)
+                                       .with_radii(radii));
+    }
+    this->setTimeNSec(input.timestamp_);
+  }
+
+  void drawDenseMap(const VIO::VisualizerInput &input) {
+    const auto &dense_map_output = input.backend_output_->dense_map_output_;
+    if (!dense_map_output || !dense_map_output->dense_map ||
+        dense_map_output->map_points == 0u) {
+      return;
+    }
+
+    this->setTimeNSec(dense_map_output->target_timestamp);
+    const std::filesystem::path dense_path =
+        map_ / odom_ / "mono_depth" / dense_map_output->backend_name;
+    this->drawScalar((dense_path / "inserted_keyframes").string(),
+                     static_cast<double>(dense_map_output->inserted_keyframes));
+    this->drawScalar((dense_path / "inserted_points").string(),
+                     static_cast<double>(dense_map_output->inserted_points));
+    this->drawScalar((dense_path / "map_points").string(),
+                     static_cast<double>(dense_map_output->map_points));
+    this->drawScalar((dense_path / "active_submap").string(),
+                     static_cast<double>(dense_map_output->active_submap_id));
+    this->drawScalar((dense_path / "submaps").string(),
+                     static_cast<double>(dense_map_output->submap_count));
+    std::vector<Eigen::Vector3f> points;
+    std::vector<rerun::Color> colors;
+    points.reserve(dense_map_output->map_points);
+    colors.reserve(dense_map_output->map_points);
+    dense_map_output->dense_map->visitPoints(
+        [&](const Point3 &point, const Eigen::Vector4f &color) {
+          points.push_back(point.cast<float>());
+          colors.emplace_back(color.x(), color.y(), color.z(), color.w());
+        });
+    if (!points.empty()) {
+      rerun::Collection<rerun::components::Radius> radii;
+      radii.take_ownership(
+          rerun::components::Radius(dense_map_output->point_radius));
+      this->rec()->log_with_static((dense_path / "map").string(),
+                                   false,
+                                   rerun::Points3D(points)
+                                       .with_colors(colors)
+                                       .with_radii(radii));
+    }
     this->setTimeNSec(input.timestamp_);
   }
 
