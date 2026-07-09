@@ -4,6 +4,7 @@
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
+#include <kimera-vio/common/MonoDepthTypes.h>
 #include <kimera-vio/pipeline/MonoImuPipeline.h>
 #include <kimera-vio/pipeline/StereoImuPipeline.h>
 
@@ -50,19 +51,17 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       "rerun_host", "rerun+http://127.0.0.1:9876/proxy");
   const auto use_rerun_visualizer =
       node_->declare_parameter<bool>("use_rerun_visualizer", FLAGS_visualize);
-  VIO::RerunVisualizer::MonoDepthParams mono_depth_params;
+  VIO::MonoDepthParams& mono_depth_params = vio_params_->mono_depth_params_;
   mono_depth_params.enabled =
       node_->declare_parameter<bool>("mono_depth.enabled", false);
   mono_depth_params.engine_path =
       node_->declare_parameter<std::string>("mono_depth.engine_path", "");
-  mono_depth_params.device_id =
-      node_->declare_parameter<int>("mono_depth.device_id", 0);
+  mono_depth_params.mode = VIO::monoDepthModeFromString(
+      node_->declare_parameter<std::string>("mono_depth.mode", "single_view"));
   mono_depth_params.point_stride =
       node_->declare_parameter<int>("mono_depth.point_stride", 4);
   mono_depth_params.max_points_per_keyframe =
       node_->declare_parameter<int>("mono_depth.max_points_per_keyframe", 5000);
-  mono_depth_params.max_map_points =
-      node_->declare_parameter<int>("mono_depth.max_map_points", 200000);
   mono_depth_params.min_depth_m =
       node_->declare_parameter<double>("mono_depth.min_depth_m", 0.1);
   mono_depth_params.max_depth_m =
@@ -81,8 +80,7 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
             .map_frame_id = map_frame_id_,
             .recording_id = rerun_recording_id,
             .result_dir = rerun_result_dir,
-            .rerun_host = rerun_host,
-            .mono_depth = mono_depth_params});
+            .rerun_host = rerun_host});
   }
 
   vio_pipeline_.reset();

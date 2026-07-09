@@ -34,6 +34,11 @@ def generate_launch_description():
         default_value='true',
         description='Use simulation time if true.'
     )
+    start_zenoh_router_arg = DeclareLaunchArgument(
+        'start_zenoh_router',
+        default_value='true',
+        description='Start the rmw_zenoh router from this launch file.'
+    )
     robot_id_arg = DeclareLaunchArgument(
         'robot_id',
         default_value='0',
@@ -166,10 +171,10 @@ def generate_launch_description():
         default_value=default_mono_depth_engine,
         description='TensorRT engine path for DA3 monocular depth.'
     )
-    mono_depth_device_id_arg = DeclareLaunchArgument(
-        'mono_depth.device_id',
-        default_value='0',
-        description='CUDA device id for DA3 monocular depth.'
+    mono_depth_mode_arg = DeclareLaunchArgument(
+        'mono_depth.mode',
+        default_value='single_view',
+        description='DA3 monocular depth mode: single_view or multi_view.'
     )
     mono_depth_point_stride_arg = DeclareLaunchArgument(
         'mono_depth.point_stride',
@@ -180,11 +185,6 @@ def generate_launch_description():
         'mono_depth.max_points_per_keyframe',
         default_value='5000',
         description='Maximum DA3 point cloud samples added per keyframe.'
-    )
-    mono_depth_max_map_points_arg = DeclareLaunchArgument(
-        'mono_depth.max_map_points',
-        default_value='200000',
-        description='Maximum accumulated DA3 map points kept in Rerun.'
     )
     mono_depth_min_depth_arg = DeclareLaunchArgument(
         'mono_depth.min_depth_m',
@@ -265,10 +265,9 @@ def generate_launch_description():
         'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
         'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
         'mono_depth.engine_path': LaunchConfiguration('mono_depth.engine_path'),
-        'mono_depth.device_id': LaunchConfiguration('mono_depth.device_id'),
+        'mono_depth.mode': LaunchConfiguration('mono_depth.mode'),
         'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
         'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
-        'mono_depth.max_map_points': LaunchConfiguration('mono_depth.max_map_points'),
         'mono_depth.min_depth_m': LaunchConfiguration('mono_depth.min_depth_m'),
         'mono_depth.max_depth_m': LaunchConfiguration('mono_depth.max_depth_m'),
         'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
@@ -307,6 +306,22 @@ def generate_launch_description():
         # prefix=['kitty -e gdb -ex run --args'],
     )
 
+    zenoh_router = ExecuteProcess(
+        condition=IfCondition(LaunchConfiguration('start_zenoh_router')),
+        cmd=[
+            'ros2',
+            'run',
+            'rmw_zenoh_cpp',
+            'rmw_zenohd',
+        ],
+        output='screen',
+    )
+
+    delayed_kimera_vio_node = TimerAction(
+        period=1.0,
+        actions=[kimera_vio_node],
+    )
+
     rosbag_play = TimerAction(
         period=LaunchConfiguration('rosbag_play_delay'),
         actions=[
@@ -333,6 +348,7 @@ def generate_launch_description():
         dataset_arg,
         parallel_arg,
         use_sim_time_arg,
+        start_zenoh_router_arg,
         robot_id_arg,
         robot_name_arg,
         log_output_arg,
@@ -358,10 +374,9 @@ def generate_launch_description():
         rerun_result_dir_arg,
         mono_depth_enabled_arg,
         mono_depth_engine_path_arg,
-        mono_depth_device_id_arg,
+        mono_depth_mode_arg,
         mono_depth_point_stride_arg,
         mono_depth_max_points_per_keyframe_arg,
-        mono_depth_max_map_points_arg,
         mono_depth_min_depth_arg,
         mono_depth_max_depth_arg,
         mono_depth_point_radius_arg,
@@ -370,6 +385,7 @@ def generate_launch_description():
         rosbag_path_arg,
         rosbag_play_delay_arg,
         rosbag_rate_arg,
-        kimera_vio_node,
+        zenoh_router,
+        delayed_kimera_vio_node,
         rosbag_play,
     ])
