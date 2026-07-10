@@ -177,10 +177,10 @@ def generate_launch_description():
         default_value='single_view',
         description='DA3 monocular depth mode: single_view or multi_view.'
     )
-    mono_depth_keyframe_skip_arg = DeclareLaunchArgument(
-        'mono_depth.keyframe_skip',
-        default_value='5',
-        description='Number of keyframes to skip between DA3 mono-depth inference runs.'
+    mono_depth_min_keyframe_distance_arg = DeclareLaunchArgument(
+        'mono_depth.min_keyframe_distance_m',
+        default_value='3.0',
+        description='Minimum odometry camera-center displacement in meters before running two-view DA3.'
     )
     mono_depth_point_stride_arg = DeclareLaunchArgument(
         'mono_depth.point_stride',
@@ -194,12 +194,12 @@ def generate_launch_description():
     )
     mono_depth_visualization_point_stride_arg = DeclareLaunchArgument(
         'mono_depth.visualization_point_stride',
-        default_value='8',
+        default_value='20',
         description='Pixel sampling stride for mono-depth Rerun and dense-map visualization.'
     )
     mono_depth_visualization_max_points_per_keyframe_arg = DeclareLaunchArgument(
         'mono_depth.visualization_max_points_per_keyframe',
-        default_value='100000',
+        default_value='10000',
         description='Maximum mono-depth samples per keyframe for Rerun and dense-map visualization.'
     )
     mono_depth_min_depth_arg = DeclareLaunchArgument(
@@ -362,7 +362,7 @@ def generate_launch_description():
         'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
         'mono_depth.engine_path': LaunchConfiguration('mono_depth.engine_path'),
         'mono_depth.mode': LaunchConfiguration('mono_depth.mode'),
-        'mono_depth.keyframe_skip': LaunchConfiguration('mono_depth.keyframe_skip'),
+        'mono_depth.min_keyframe_distance_m': LaunchConfiguration('mono_depth.min_keyframe_distance_m'),
         'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
         'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
         'mono_depth.visualization_point_stride': LaunchConfiguration('mono_depth.visualization_point_stride'),
@@ -509,7 +509,7 @@ def generate_launch_description():
         mono_depth_enabled_arg,
         mono_depth_engine_path_arg,
         mono_depth_mode_arg,
-        mono_depth_keyframe_skip_arg,
+        mono_depth_min_keyframe_distance_arg,
         mono_depth_point_stride_arg,
         mono_depth_max_points_per_keyframe_arg,
         mono_depth_visualization_point_stride_arg,

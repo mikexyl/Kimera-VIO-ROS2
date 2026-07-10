@@ -3,6 +3,8 @@
 #include <aria_viz/visualizer_rerun.h>
 #include <glog/logging.h>
 #include <gtsam/slam/dataset.h>
+#include <gtsam_points/factors/integrated_vgicp_factor.hpp>
+#include <gtsam_points/factors/integrated_weighted_icp_factor.hpp>
 #include <kimera-vio/loopclosure/LoopClosureDetector-definitions.h>
 #include <kimera-vio/loopclosure/LoopClosureDetector.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
@@ -17,6 +19,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <utility>
 
 namespace VIO {
@@ -300,6 +303,7 @@ public:
     drawPoints(map_ / odom_ / "smoother" / "states",
                input.backend_output_->state_, {aria::viz::ColorMap::kRed},
                {0.5});
+    drawLocalWindowFactorGraph(input);
     pose_states_.clear();
     for (const auto &key : smoother_states_.keys()) {
       Symbol symbol(key);
@@ -422,6 +426,131 @@ public:
     }
   }
 
+  static bool isMonoDepthIcpFactor(
+      const gtsam::NonlinearFactor::shared_ptr &factor) {
+    return std::dynamic_pointer_cast<
+               gtsam_points::IntegratedWeightedICPFactor>(factor) != nullptr ||
+           std::dynamic_pointer_cast<gtsam_points::IntegratedVGICPFactor>(
+               factor) != nullptr;
+  }
+
+  void drawLocalWindowFactorGraph(const VIO::VisualizerInput &input) {
+    const gtsam::Values &state = input.backend_output_->state_;
+    const gtsam::NonlinearFactorGraph &factor_graph =
+        input.backend_output_->factor_graph_;
+    const std::filesystem::path graph_path =
+        map_ / odom_ / "smoother" / "factor_graph";
+
+    // Remove the previous fixed-lag snapshot so marginalized nodes and edges
+    // do not remain visible at the newest Rerun timestamp.
+    this->rec()->log(graph_path.string(), rerun::Clear(true));
+
+    std::vector<Point3> node_positions;
+    std::vector<std::string> node_labels;
+    std::map<gtsam::Key, Point3> pose_positions;
+    for (const gtsam::Key key : state.keys()) {
+      const gtsam::Symbol symbol(key);
+      if (symbol.chr() != kPoseSymbolChar) {
+        continue;
+      }
+      const Point3 position = state.at<Pose3>(key).translation();
+      pose_positions.emplace(key, position);
+      node_positions.push_back(position);
+      node_labels.push_back(gtsam::DefaultKeyFormatter(key));
+    }
+
+    std::vector<std::pair<Point3, Point3>> regular_edges;
+    std::vector<std::pair<Point3, Point3>> icp_edges;
+    std::vector<std::string> icp_edge_labels;
+    std::set<gtsam::Key> icp_endpoint_keys;
+    std::size_t active_factor_count = 0u;
+    std::size_t pose_connectivity_factor_count = 0u;
+    for (const gtsam::NonlinearFactor::shared_ptr &factor : factor_graph) {
+      if (!factor) {
+        continue;
+      }
+      ++active_factor_count;
+
+      std::vector<gtsam::Key> pose_keys;
+      for (const gtsam::Key key : factor->keys()) {
+        if (pose_positions.find(key) != pose_positions.end()) {
+          pose_keys.push_back(key);
+        }
+      }
+      std::sort(pose_keys.begin(), pose_keys.end());
+      pose_keys.erase(std::unique(pose_keys.begin(), pose_keys.end()),
+                      pose_keys.end());
+      if (pose_keys.size() != 2u) {
+        continue;
+      }
+      ++pose_connectivity_factor_count;
+
+      const std::pair<Point3, Point3> edge(
+          pose_positions.at(pose_keys[0]), pose_positions.at(pose_keys[1]));
+      if (isMonoDepthIcpFactor(factor)) {
+        icp_edges.push_back(edge);
+        icp_endpoint_keys.insert(pose_keys[0]);
+        icp_endpoint_keys.insert(pose_keys[1]);
+        icp_edge_labels.push_back(
+            fmt::format("ICP {}-{}",
+                        gtsam::DefaultKeyFormatter(pose_keys[0]),
+                        gtsam::DefaultKeyFormatter(pose_keys[1])));
+      } else {
+        regular_edges.push_back(edge);
+      }
+    }
+
+    const Eigen::Vector4f node_color(225.0f, 225.0f, 225.0f, 255.0f);
+    const Eigen::Vector4f regular_edge_color(
+        105.0f, 155.0f, 230.0f, 130.0f);
+    const Eigen::Vector4f icp_color(255.0f, 35.0f, 180.0f, 255.0f);
+    this->drawPoints(graph_path / "nodes",
+                     node_positions,
+                     node_color,
+                     {0.08f},
+                     node_labels,
+                     false);
+    this->drawLines(graph_path / "edges" / "other",
+                    regular_edges,
+                    {regular_edge_color},
+                    1.5f);
+    this->drawLines(graph_path / "edges" / "icp",
+                    icp_edges,
+                    {icp_color},
+                    5.0f,
+                    icp_edge_labels);
+
+    std::vector<Point3> icp_endpoint_positions;
+    std::vector<std::string> icp_endpoint_labels;
+    for (const gtsam::Key key : icp_endpoint_keys) {
+      icp_endpoint_positions.push_back(pose_positions.at(key));
+      icp_endpoint_labels.push_back(gtsam::DefaultKeyFormatter(key));
+    }
+    this->drawPoints(graph_path / "icp_endpoints",
+                     icp_endpoint_positions,
+                     icp_color,
+                     {0.13f},
+                     icp_endpoint_labels,
+                     false);
+
+    this->drawScalar((graph_path / "stats" / "pose_nodes").string(),
+                     static_cast<double>(node_positions.size()));
+    this->drawScalar((graph_path / "stats" / "active_factors").string(),
+                     static_cast<double>(active_factor_count));
+    this->drawScalar(
+        (graph_path / "stats" / "pose_connectivity_factors").string(),
+        static_cast<double>(pose_connectivity_factor_count));
+    this->drawScalar((graph_path / "stats" / "icp_factors").string(),
+                     static_cast<double>(icp_edges.size()));
+    LOG_EVERY_N(INFO, 30)
+        << "Rerun local-window factor graph: pose_nodes="
+        << node_positions.size()
+        << ", active_factors=" << active_factor_count
+        << ", pose_connectivity_factors="
+        << pose_connectivity_factor_count
+        << ", icp_factors=" << icp_edges.size();
+  }
+
   void visualizeLandmarks(std::filesystem::path base_frame,
                           const Landmarks &landmarks, Eigen::Vector4f color) {
     std::vector<Point3> lmk_points(landmarks.begin(), landmarks.end());
@@ -489,6 +618,17 @@ public:
                      mono_depth_map_output->scale_log_rmse);
     this->drawScalar((map_ / odom_ / "mono_depth" / "window_keyframes").string(),
                      static_cast<double>(mono_depth_map_output->window_keyframes));
+    if (mono_depth_map_output->da3_pose_scale_valid) {
+      const std::filesystem::path pose_scale_path =
+          map_ / odom_ / "mono_depth" / "da3_pose_scale";
+      this->drawScalar((pose_scale_path / "depth_scale").string(),
+                       mono_depth_map_output->da3_pose_depth_scale);
+      this->drawScalar((pose_scale_path / "da3_camera_displacement").string(),
+                       mono_depth_map_output->da3_camera_displacement);
+      this->drawScalar(
+          (pose_scale_path / "odometry_camera_displacement").string(),
+          mono_depth_map_output->odometry_camera_displacement);
+    }
     const auto& mono_depth_cloud =
         mono_depth_map_output->window_cloud.empty()
             ? mono_depth_map_output->keyframe_cloud
