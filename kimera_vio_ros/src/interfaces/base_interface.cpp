@@ -59,19 +59,52 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       node_->declare_parameter<std::string>("mono_depth.engine_path", "");
   mono_depth_params.mode = VIO::monoDepthModeFromString(
       node_->declare_parameter<std::string>("mono_depth.mode", "single_view"));
+  mono_depth_params.keyframe_skip =
+      node_->declare_parameter<int>("mono_depth.keyframe_skip", 0);
   mono_depth_params.point_stride =
       node_->declare_parameter<int>("mono_depth.point_stride", 4);
   mono_depth_params.max_points_per_keyframe =
       node_->declare_parameter<int>("mono_depth.max_points_per_keyframe", 5000);
+  mono_depth_params.visualization_point_stride =
+      node_->declare_parameter<int>("mono_depth.visualization_point_stride",
+                                    mono_depth_params.point_stride);
+  mono_depth_params.visualization_max_points_per_keyframe =
+      node_->declare_parameter<int>(
+          "mono_depth.visualization_max_points_per_keyframe",
+          mono_depth_params.max_points_per_keyframe);
   mono_depth_params.min_depth_m =
       node_->declare_parameter<double>("mono_depth.min_depth_m", 0.1);
   mono_depth_params.max_depth_m =
       node_->declare_parameter<double>("mono_depth.max_depth_m", 30.0);
+  mono_depth_params.depth_weighting_enabled =
+      node_->declare_parameter<bool>("mono_depth.depth_weighting_enabled",
+                                     true);
+  mono_depth_params.depth_weight_normal_radius =
+      node_->declare_parameter<int>("mono_depth.depth_weight_normal_radius", 2);
+  mono_depth_params.depth_weight_min =
+      node_->declare_parameter<double>("mono_depth.depth_weight_min", 0.05);
+  mono_depth_params.depth_weight_grazing_power =
+      node_->declare_parameter<double>("mono_depth.depth_weight_grazing_power",
+                                       1.0);
+  mono_depth_params.depth_weight_range_ref =
+      node_->declare_parameter<double>("mono_depth.depth_weight_range_ref",
+                                       0.0);
+  mono_depth_params.depth_weight_range_power =
+      node_->declare_parameter<double>("mono_depth.depth_weight_range_power",
+                                       2.0);
+  mono_depth_params.depth_weight_range_min =
+      node_->declare_parameter<double>("mono_depth.depth_weight_range_min",
+                                       0.05);
+  mono_depth_params.visualize_weights =
+      node_->declare_parameter<bool>("mono_depth.visualize_weights", false);
   mono_depth_params.point_radius =
       static_cast<float>(node_->declare_parameter<double>(
           "mono_depth.point_radius", 0.005));
   mono_depth_params.verbose =
       node_->declare_parameter<bool>("mono_depth.verbose", false);
+  mono_depth_params.align_scale_with_landmarks =
+      node_->declare_parameter<bool>("mono_depth.align_scale_with_landmarks",
+                                     false);
   VIO::DenseMapParams& dense_map_params = vio_params_->dense_map_params_;
   dense_map_params.enabled =
       node_->declare_parameter<bool>("dense_map.enabled", true);

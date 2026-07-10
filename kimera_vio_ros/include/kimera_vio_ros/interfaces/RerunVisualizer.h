@@ -196,6 +196,14 @@ public:
     }
   }
 
+  static size_t runTimestampNSec() {
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    return static_cast<size_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now).count());
+  }
+
+  inline void setRunTime() { this->setTimeNSec(runTimestampNSec()); }
+
   void logGlogMessages(google::LogSeverity severity, const char *filename,
                        int line, const char *message) {
     // glog severity to Rerun log level
@@ -219,6 +227,7 @@ public:
     }
 
     // Forward glog messages to Rerun
+    this->setRunTime();
     this->rec()->log(
         "glog", rerun::TextLog(fmt::format("{}", message)).with_level(level));
   }
@@ -226,7 +235,7 @@ public:
   VIO::VisualizerOutput::UniquePtr
   spinOnce(const VIO::VisualizerInput &input) override {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
-    this->setTimeNSec(input.timestamp_);
+    this->setRunTime();
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
@@ -346,6 +355,7 @@ public:
   void drawGtTraj(gtsam::Values est_traj_values,
                   const FrameIDTimestampMap &timestamp_map) {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
+    this->setRunTime();
     if (not gt_trajectory_.empty()) {
       if (est_traj_values.size() - prev_alignment_size_ > 50) {
         prev_alignment_size_ = est_traj_values.size();
@@ -426,7 +436,6 @@ public:
       return;
     }
 
-    this->setTimeNSec(mono_depth_map_output->target_timestamp);
     this->drawScalar((map_ / odom_ / "mono_depth" / "scale").string(),
                      mono_depth_map_output->scale);
     this->drawScalar(
@@ -434,31 +443,58 @@ public:
         static_cast<double>(mono_depth_map_output->scale_inlier_pairs));
     this->drawScalar((map_ / odom_ / "mono_depth" / "scale_log_rmse").string(),
                      mono_depth_map_output->scale_log_rmse);
+    this->drawScalar((map_ / odom_ / "mono_depth" / "window_keyframes").string(),
+                     static_cast<double>(mono_depth_map_output->window_keyframes));
+    const auto& mono_depth_cloud =
+        mono_depth_map_output->window_cloud.empty()
+            ? mono_depth_map_output->keyframe_cloud
+            : mono_depth_map_output->window_cloud;
+    const auto& mono_depth_colors =
+        mono_depth_map_output->window_cloud.empty()
+            ? mono_depth_map_output->keyframe_colors
+            : mono_depth_map_output->window_colors;
     std::vector<Eigen::Vector3f> points;
     std::vector<rerun::Color> colors;
-    points.reserve(mono_depth_map_output->accumulated_map.size());
-    colors.reserve(mono_depth_map_output->accumulated_colors.size());
-    for (std::size_t i = 0u; i < mono_depth_map_output->accumulated_map.size();
-         ++i) {
-      points.push_back(mono_depth_map_output->accumulated_map[i].cast<float>());
-      if (i < mono_depth_map_output->accumulated_colors.size()) {
-        const Eigen::Vector4f& color = mono_depth_map_output->accumulated_colors[i];
+    points.reserve(mono_depth_cloud.size());
+    colors.reserve(mono_depth_colors.size());
+    for (std::size_t i = 0u; i < mono_depth_cloud.size(); ++i) {
+      points.push_back(mono_depth_cloud[i].cast<float>());
+      if (i < mono_depth_colors.size()) {
+        const Eigen::Vector4f& color = mono_depth_colors[i];
         colors.emplace_back(color.x(), color.y(), color.z(), color.w());
       } else {
         colors.emplace_back(180, 180, 180, 180);
       }
     }
+    const std::string window_path =
+        (map_ / odom_ / "mono_depth" / "window").string();
     if (!points.empty()) {
       rerun::Collection<rerun::components::Radius> radii;
       radii.take_ownership(
           rerun::components::Radius(mono_depth_map_output->point_radius));
-      this->rec()->log_with_static((map_ / odom_ / "mono_depth" / "map").string(),
+      this->rec()->log_with_static(window_path,
                                    false,
                                    rerun::Points3D(points)
                                        .with_colors(colors)
                                        .with_radii(radii));
+      if (mono_depth_map_output->window_weight_colors.size() ==
+          mono_depth_cloud.size()) {
+        std::vector<rerun::Color> weight_colors;
+        weight_colors.reserve(mono_depth_map_output->window_weight_colors.size());
+        for (const Eigen::Vector4f& color :
+             mono_depth_map_output->window_weight_colors) {
+          weight_colors.emplace_back(color.x(), color.y(), color.z(), color.w());
+        }
+        this->rec()->log_with_static(
+            (map_ / odom_ / "mono_depth" / "weights" / "window").string(),
+            false,
+            rerun::Points3D(points)
+                .with_colors(weight_colors)
+                .with_radii(radii));
+      }
+    } else {
+      this->rec()->log_with_static(window_path, false, rerun::Points3D(points));
     }
-    this->setTimeNSec(input.timestamp_);
   }
 
   void drawDenseMap(const VIO::VisualizerInput &input) {
@@ -468,7 +504,6 @@ public:
       return;
     }
 
-    this->setTimeNSec(dense_map_output->target_timestamp);
     const std::filesystem::path dense_path =
         map_ / odom_ / "mono_depth" / dense_map_output->backend_name;
     this->drawScalar((dense_path / "inserted_keyframes").string(),
@@ -500,7 +535,6 @@ public:
                                        .with_colors(colors)
                                        .with_radii(radii));
     }
-    this->setTimeNSec(input.timestamp_);
   }
 
   void checkAndSaveTrajectories(const gtsam::Values &states = gtsam::Values()) {

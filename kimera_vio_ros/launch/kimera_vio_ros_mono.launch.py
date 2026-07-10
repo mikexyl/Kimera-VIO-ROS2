@@ -2,9 +2,10 @@ import os
 from pathlib import Path
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
+from launch.actions import DeclareLaunchArgument, EmitEvent, ExecuteProcess, TimerAction
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.events import Shutdown
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -176,6 +177,11 @@ def generate_launch_description():
         default_value='single_view',
         description='DA3 monocular depth mode: single_view or multi_view.'
     )
+    mono_depth_keyframe_skip_arg = DeclareLaunchArgument(
+        'mono_depth.keyframe_skip',
+        default_value='5',
+        description='Number of keyframes to skip between DA3 mono-depth inference runs.'
+    )
     mono_depth_point_stride_arg = DeclareLaunchArgument(
         'mono_depth.point_stride',
         default_value='4',
@@ -183,8 +189,18 @@ def generate_launch_description():
     )
     mono_depth_max_points_per_keyframe_arg = DeclareLaunchArgument(
         'mono_depth.max_points_per_keyframe',
-        default_value='5000',
+        default_value='1000000',
         description='Maximum DA3 point cloud samples added per keyframe.'
+    )
+    mono_depth_visualization_point_stride_arg = DeclareLaunchArgument(
+        'mono_depth.visualization_point_stride',
+        default_value='8',
+        description='Pixel sampling stride for mono-depth Rerun and dense-map visualization.'
+    )
+    mono_depth_visualization_max_points_per_keyframe_arg = DeclareLaunchArgument(
+        'mono_depth.visualization_max_points_per_keyframe',
+        default_value='100000',
+        description='Maximum mono-depth samples per keyframe for Rerun and dense-map visualization.'
     )
     mono_depth_min_depth_arg = DeclareLaunchArgument(
         'mono_depth.min_depth_m',
@@ -193,8 +209,48 @@ def generate_launch_description():
     )
     mono_depth_max_depth_arg = DeclareLaunchArgument(
         'mono_depth.max_depth_m',
-        default_value='30.0',
+        default_value='100.0',
         description='Maximum valid DA3 depth in meters.'
+    )
+    mono_depth_depth_weighting_enabled_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weighting_enabled',
+        default_value='true',
+        description='Enable depth-normal and range weighting for mono-depth ICP.'
+    )
+    mono_depth_depth_weight_normal_radius_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weight_normal_radius',
+        default_value='2',
+        description='Pixel radius for central-difference mono-depth surface normals.'
+    )
+    mono_depth_depth_weight_min_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weight_min',
+        default_value='0.05',
+        description='Minimum grazing-angle mono-depth ICP weight.'
+    )
+    mono_depth_depth_weight_grazing_power_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weight_grazing_power',
+        default_value='1.0',
+        description='Power applied to mono-depth viewing-angle confidence.'
+    )
+    mono_depth_depth_weight_range_ref_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weight_range_ref',
+        default_value='0.0',
+        description='Reference range for optional mono-depth range weighting; 0 disables it.'
+    )
+    mono_depth_depth_weight_range_power_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weight_range_power',
+        default_value='2.0',
+        description='Range falloff power for mono-depth ICP weights.'
+    )
+    mono_depth_depth_weight_range_min_arg = DeclareLaunchArgument(
+        'mono_depth.depth_weight_range_min',
+        default_value='0.05',
+        description='Minimum range multiplier for mono-depth ICP weights.'
+    )
+    mono_depth_visualize_weights_arg = DeclareLaunchArgument(
+        'mono_depth.visualize_weights',
+        default_value='false',
+        description='Publish a Rerun debug cloud colored by mono-depth ICP weights.'
     )
     mono_depth_point_radius_arg = DeclareLaunchArgument(
         'mono_depth.point_radius',
@@ -205,6 +261,11 @@ def generate_launch_description():
         'mono_depth.verbose',
         default_value='false',
         description='Enable verbose DA3 TensorRT logging.'
+    )
+    mono_depth_align_scale_with_landmarks_arg = DeclareLaunchArgument(
+        'mono_depth.align_scale_with_landmarks',
+        default_value='false',
+        description='Align DA3 mono-depth scale from backend landmarks.'
     )
     dense_map_enabled_arg = DeclareLaunchArgument(
         'dense_map.enabled',
@@ -246,6 +307,11 @@ def generate_launch_description():
         default_value='1.0',
         description='ros2 bag play rate.'
     )
+    rosbag_play_duration_arg = DeclareLaunchArgument(
+        'rosbag_play_duration',
+        default_value='0.0',
+        description='Seconds of rosbag playback before shutting down the launch. 0 disables the timed shutdown.'
+    )
 
     node_arguments = [
         ['--use_lcd=', LaunchConfiguration('use_lcd')],
@@ -286,12 +352,24 @@ def generate_launch_description():
         'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
         'mono_depth.engine_path': LaunchConfiguration('mono_depth.engine_path'),
         'mono_depth.mode': LaunchConfiguration('mono_depth.mode'),
+        'mono_depth.keyframe_skip': LaunchConfiguration('mono_depth.keyframe_skip'),
         'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
         'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
+        'mono_depth.visualization_point_stride': LaunchConfiguration('mono_depth.visualization_point_stride'),
+        'mono_depth.visualization_max_points_per_keyframe': LaunchConfiguration('mono_depth.visualization_max_points_per_keyframe'),
         'mono_depth.min_depth_m': LaunchConfiguration('mono_depth.min_depth_m'),
         'mono_depth.max_depth_m': LaunchConfiguration('mono_depth.max_depth_m'),
+        'mono_depth.depth_weighting_enabled': LaunchConfiguration('mono_depth.depth_weighting_enabled'),
+        'mono_depth.depth_weight_normal_radius': LaunchConfiguration('mono_depth.depth_weight_normal_radius'),
+        'mono_depth.depth_weight_min': LaunchConfiguration('mono_depth.depth_weight_min'),
+        'mono_depth.depth_weight_grazing_power': LaunchConfiguration('mono_depth.depth_weight_grazing_power'),
+        'mono_depth.depth_weight_range_ref': LaunchConfiguration('mono_depth.depth_weight_range_ref'),
+        'mono_depth.depth_weight_range_power': LaunchConfiguration('mono_depth.depth_weight_range_power'),
+        'mono_depth.depth_weight_range_min': LaunchConfiguration('mono_depth.depth_weight_range_min'),
+        'mono_depth.visualize_weights': LaunchConfiguration('mono_depth.visualize_weights'),
         'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
+        'mono_depth.align_scale_with_landmarks': LaunchConfiguration('mono_depth.align_scale_with_landmarks'),
         'dense_map.enabled': LaunchConfiguration('dense_map.enabled'),
         'dense_map.backend': LaunchConfiguration('dense_map.backend'),
         'dense_map.voxel_resolution': LaunchConfiguration('dense_map.voxel_resolution'),
@@ -368,6 +446,26 @@ def generate_launch_description():
         ],
     )
 
+    shutdown_after_rosbag_duration = TimerAction(
+        condition=IfCondition(PythonExpression([
+            "'",
+            LaunchConfiguration('rosbag_play'),
+            "'.lower() in ['true', '1', 'yes'] and float('",
+            LaunchConfiguration('rosbag_play_duration'),
+            "') > 0.0"
+        ])),
+        period=PythonExpression([
+            LaunchConfiguration('rosbag_play_delay'),
+            ' + ',
+            LaunchConfiguration('rosbag_play_duration'),
+        ]),
+        actions=[
+            EmitEvent(event=Shutdown(
+                reason='rosbag_play_duration elapsed'
+            ))
+        ],
+    )
+
     return LaunchDescription([
         dataset_arg,
         parallel_arg,
@@ -399,12 +497,24 @@ def generate_launch_description():
         mono_depth_enabled_arg,
         mono_depth_engine_path_arg,
         mono_depth_mode_arg,
+        mono_depth_keyframe_skip_arg,
         mono_depth_point_stride_arg,
         mono_depth_max_points_per_keyframe_arg,
+        mono_depth_visualization_point_stride_arg,
+        mono_depth_visualization_max_points_per_keyframe_arg,
         mono_depth_min_depth_arg,
         mono_depth_max_depth_arg,
+        mono_depth_depth_weighting_enabled_arg,
+        mono_depth_depth_weight_normal_radius_arg,
+        mono_depth_depth_weight_min_arg,
+        mono_depth_depth_weight_grazing_power_arg,
+        mono_depth_depth_weight_range_ref_arg,
+        mono_depth_depth_weight_range_power_arg,
+        mono_depth_depth_weight_range_min_arg,
+        mono_depth_visualize_weights_arg,
         mono_depth_point_radius_arg,
         mono_depth_verbose_arg,
+        mono_depth_align_scale_with_landmarks_arg,
         dense_map_enabled_arg,
         dense_map_backend_arg,
         dense_map_voxel_resolution_arg,
@@ -413,7 +523,9 @@ def generate_launch_description():
         rosbag_path_arg,
         rosbag_play_delay_arg,
         rosbag_rate_arg,
+        rosbag_play_duration_arg,
         zenoh_router,
         delayed_kimera_vio_node,
         rosbag_play,
+        shutdown_after_rosbag_duration,
     ])

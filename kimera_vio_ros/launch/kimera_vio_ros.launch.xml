@@ -44,6 +44,19 @@
   <arg name="rerun_host" default="rerun+http://127.0.0.1:9876/proxy"/>
   <arg name="rerun_recording_id" default=""/>
   <arg name="rerun_result_dir" default=""/>
+  <arg name="mono_depth.align_scale_with_landmarks" default="false"/>
+  <arg name="mono_depth.keyframe_skip" default="0"/>
+  <arg name="mono_depth.depth_weighting_enabled" default="true"/>
+  <arg name="mono_depth.depth_weight_normal_radius" default="2"/>
+  <arg name="mono_depth.depth_weight_min" default="0.05"/>
+  <arg name="mono_depth.depth_weight_grazing_power" default="1.0"/>
+  <arg name="mono_depth.depth_weight_range_ref" default="0.0"/>
+  <arg name="mono_depth.depth_weight_range_power" default="2.0"/>
+  <arg name="mono_depth.depth_weight_range_min" default="0.05"/>
+  <arg name="mono_depth.visualize_weights" default="false"/>
+  <arg name="mono_depth.visualization_point_stride" default="4"/>
+  <arg name="mono_depth.visualization_max_points_per_keyframe" default="5000"/>
+  <arg name="dense_map.voxel_resolution" default="0.3"/>
   <!-- <arg name="rectified"    default="true" /> -->
 
   <!-- Launch main node  -->
@@ -74,6 +87,19 @@
     <param name="rerun_host" value="$(var rerun_host)"/>
     <param name="rerun_recording_id" value="$(var rerun_recording_id)"/>
     <param name="rerun_result_dir" value="$(var rerun_result_dir)"/>
+    <param name="mono_depth.align_scale_with_landmarks" value="$(var mono_depth.align_scale_with_landmarks)"/>
+    <param name="mono_depth.keyframe_skip" value="$(var mono_depth.keyframe_skip)"/>
+    <param name="mono_depth.depth_weighting_enabled" value="$(var mono_depth.depth_weighting_enabled)"/>
+    <param name="mono_depth.depth_weight_normal_radius" value="$(var mono_depth.depth_weight_normal_radius)"/>
+    <param name="mono_depth.depth_weight_min" value="$(var mono_depth.depth_weight_min)"/>
+    <param name="mono_depth.depth_weight_grazing_power" value="$(var mono_depth.depth_weight_grazing_power)"/>
+    <param name="mono_depth.depth_weight_range_ref" value="$(var mono_depth.depth_weight_range_ref)"/>
+    <param name="mono_depth.depth_weight_range_power" value="$(var mono_depth.depth_weight_range_power)"/>
+    <param name="mono_depth.depth_weight_range_min" value="$(var mono_depth.depth_weight_range_min)"/>
+    <param name="mono_depth.visualize_weights" value="$(var mono_depth.visualize_weights)"/>
+    <param name="mono_depth.visualization_point_stride" value="$(var mono_depth.visualization_point_stride)"/>
+    <param name="mono_depth.visualization_max_points_per_keyframe" value="$(var mono_depth.visualization_max_points_per_keyframe)"/>
+    <param name="dense_map.voxel_resolution" value="$(var dense_map.voxel_resolution)"/>
 
     <!-- Frame IDs for Odometry -->
     <param name="frame_id">
