@@ -54,6 +54,8 @@
   <arg name="mono_depth.depth_weight_range_power" default="2.0"/>
   <arg name="mono_depth.depth_weight_range_min" default="0.05"/>
   <arg name="mono_depth.visualize_weights" default="false"/>
+  <arg name="mono_depth.min_confidence" default="1.1"/>
+  <arg name="mono_depth.visualize_confidence" default="false"/>
   <arg name="mono_depth.visualization_point_stride" default="4"/>
   <arg name="mono_depth.visualization_max_points_per_keyframe" default="5000"/>
   <arg name="dense_map.voxel_resolution" default="0.3"/>
@@ -97,6 +99,8 @@
     <param name="mono_depth.depth_weight_range_power" value="$(var mono_depth.depth_weight_range_power)"/>
     <param name="mono_depth.depth_weight_range_min" value="$(var mono_depth.depth_weight_range_min)"/>
     <param name="mono_depth.visualize_weights" value="$(var mono_depth.visualize_weights)"/>
+    <param name="mono_depth.min_confidence" value="$(var mono_depth.min_confidence)"/>
+    <param name="mono_depth.visualize_confidence" value="$(var mono_depth.visualize_confidence)"/>
     <param name="mono_depth.visualization_point_stride" value="$(var mono_depth.visualization_point_stride)"/>
     <param name="mono_depth.visualization_max_points_per_keyframe" value="$(var mono_depth.visualization_max_points_per_keyframe)"/>
     <param name="dense_map.voxel_resolution" value="$(var dense_map.voxel_resolution)"/>

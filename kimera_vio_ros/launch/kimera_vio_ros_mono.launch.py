@@ -252,6 +252,16 @@ def generate_launch_description():
         default_value='false',
         description='Publish a Rerun debug cloud colored by mono-depth ICP weights.'
     )
+    mono_depth_min_confidence_arg = DeclareLaunchArgument(
+        'mono_depth.min_confidence',
+        default_value='1.1',
+        description='Minimum DA3 confidence in multi_view mode; 0 disables confidence filtering.'
+    )
+    mono_depth_visualize_confidence_arg = DeclareLaunchArgument(
+        'mono_depth.visualize_confidence',
+        default_value='false',
+        description='Log the newest multi-view DA3 confidence heatmap and threshold mask to Rerun.'
+    )
     mono_depth_point_radius_arg = DeclareLaunchArgument(
         'mono_depth.point_radius',
         default_value='0.005',
@@ -367,6 +377,8 @@ def generate_launch_description():
         'mono_depth.depth_weight_range_power': LaunchConfiguration('mono_depth.depth_weight_range_power'),
         'mono_depth.depth_weight_range_min': LaunchConfiguration('mono_depth.depth_weight_range_min'),
         'mono_depth.visualize_weights': LaunchConfiguration('mono_depth.visualize_weights'),
+        'mono_depth.min_confidence': LaunchConfiguration('mono_depth.min_confidence'),
+        'mono_depth.visualize_confidence': LaunchConfiguration('mono_depth.visualize_confidence'),
         'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
         'mono_depth.align_scale_with_landmarks': LaunchConfiguration('mono_depth.align_scale_with_landmarks'),
@@ -512,6 +524,8 @@ def generate_launch_description():
         mono_depth_depth_weight_range_power_arg,
         mono_depth_depth_weight_range_min_arg,
         mono_depth_visualize_weights_arg,
+        mono_depth_min_confidence_arg,
+        mono_depth_visualize_confidence_arg,
         mono_depth_point_radius_arg,
         mono_depth_verbose_arg,
         mono_depth_align_scale_with_landmarks_arg,

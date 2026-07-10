@@ -265,6 +265,7 @@ public:
                       small_image, false);
     }
 
+    drawMonoDepthConfidence(input);
     drawMonoDepthMap(input);
     drawDenseMap(input);
 
@@ -427,6 +428,49 @@ public:
 
     this->drawPoints(base_frame / "landmarks", lmk_points, {color}, {0.001}, {},
                      false);
+  }
+
+  void drawMonoDepthConfidence(const VIO::VisualizerInput &input) {
+    const auto &packet = input.frontend_output_->mono_depth_raw_packet_;
+    if (!packet || !packet->confidence_visualization_enabled) {
+      return;
+    }
+
+    const std::filesystem::path confidence_path =
+        map_ / odom_ / baselink_ / "mono_depth" / "confidence";
+    this->drawScalar((confidence_path / "threshold").string(),
+                     packet->confidence_threshold);
+    this->drawScalar((confidence_path / "retained_fraction").string(),
+                     packet->confidence_retained_fraction);
+
+    if (!packet->confidence.empty() &&
+        packet->confidence.type() == CV_32FC1) {
+      cv::Mat scaled(packet->confidence.size(), CV_8UC1, cv::Scalar(0));
+      constexpr float kConfidenceDisplayMax = 4.0f;
+      for (int row = 0; row < packet->confidence.rows; ++row) {
+        const float *source = packet->confidence.ptr<float>(row);
+        uint8_t *destination = scaled.ptr<uint8_t>(row);
+        for (int col = 0; col < packet->confidence.cols; ++col) {
+          if (std::isfinite(source[col])) {
+            const float normalized =
+                std::clamp(source[col], 0.0f, kConfidenceDisplayMax) /
+                kConfidenceDisplayMax;
+            destination[col] = static_cast<uint8_t>(
+                std::lround(normalized * 255.0f));
+          }
+        }
+      }
+      cv::Mat heatmap;
+      cv::applyColorMap(scaled, heatmap, cv::COLORMAP_TURBO);
+      this->drawImage(confidence_path / "image", heatmap, false);
+    }
+
+    if (!packet->confidence_mask.empty() &&
+        packet->confidence_mask.type() == CV_8UC1) {
+      this->drawImage(confidence_path / "filtered_mask",
+                      packet->confidence_mask,
+                      false);
+    }
   }
 
   void drawMonoDepthMap(const VIO::VisualizerInput &input) {

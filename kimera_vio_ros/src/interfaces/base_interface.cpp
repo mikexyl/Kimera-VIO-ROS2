@@ -97,6 +97,10 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
                                        0.05);
   mono_depth_params.visualize_weights =
       node_->declare_parameter<bool>("mono_depth.visualize_weights", false);
+  mono_depth_params.min_confidence =
+      node_->declare_parameter<double>("mono_depth.min_confidence", 1.1);
+  mono_depth_params.visualize_confidence =
+      node_->declare_parameter<bool>("mono_depth.visualize_confidence", false);
   mono_depth_params.point_radius =
       static_cast<float>(node_->declare_parameter<double>(
           "mono_depth.point_radius", 0.005));
