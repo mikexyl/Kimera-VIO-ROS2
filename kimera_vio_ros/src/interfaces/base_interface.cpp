@@ -104,8 +104,28 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       VIO::monoDepthScaleAlignmentMethodFromString(
           node_->declare_parameter<std::string>(
               "mono_depth.scale_alignment_method", "none"));
+  mono_depth_params.visualize_landmark_scale_alignment =
+      node_->declare_parameter<bool>(
+          "mono_depth.visualize_landmark_scale_alignment", false);
+  mono_depth_params.icp_only_da3_overlap_fusion =
+      node_->declare_parameter<bool>("mono_depth.icp_only_da3_overlap_fusion",
+                                     false);
+  mono_depth_params.landmark_scale_flatness_radius =
+      node_->declare_parameter<int>("mono_depth.landmark_scale_flatness_radius",
+                                    4);
+  mono_depth_params.landmark_scale_max_relative_depth_variation =
+      node_->declare_parameter<double>(
+          "mono_depth.landmark_scale_max_relative_depth_variation", 0.15);
   VIO::validateMonoDepthScaleAlignmentConfiguration(
       mono_depth_params.mode, mono_depth_params.scale_alignment_method);
+  VIO::BackendParams &backend_params = *vio_params_->backend_params_;
+  backend_params.vgicp_icp_only_da3_overlap_fusion_ =
+      mono_depth_params.icp_only_da3_overlap_fusion;
+  CHECK(!backend_params.vgicp_icp_only_da3_overlap_fusion_ ||
+        (backend_params.vgicp_factors_enabled_ &&
+         backend_params.vgicp_icp_only_enabled_))
+      << "mono_depth.icp_only_da3_overlap_fusion requires the isolated "
+         "mono-depth diagnostic path to be enabled in BackendParams.yaml";
   VIO::DenseMapParams &dense_map_params = vio_params_->dense_map_params_;
   dense_map_params.enabled =
       node_->declare_parameter<bool>("dense_map.enabled", true);

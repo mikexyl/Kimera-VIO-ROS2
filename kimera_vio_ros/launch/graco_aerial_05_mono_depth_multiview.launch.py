@@ -67,6 +67,33 @@ def generate_launch_description():
             'Mono-depth scale alignment: relative_pose, landmarks, or none.'
         ),
     )
+    mono_depth_icp_only_da3_overlap_fusion_arg = DeclareLaunchArgument(
+        'mono_depth.icp_only_da3_overlap_fusion',
+        default_value='true',
+        description=(
+            'Use DA3 shared-view scale chaining instead of ICP in the isolated path.'
+        ),
+    )
+    mono_depth_visualize_landmark_scale_alignment_arg = DeclareLaunchArgument(
+        'mono_depth.visualize_landmark_scale_alignment',
+        default_value='true',
+        description='Log landmark scale weights and rejection reasons to Rerun.',
+    )
+    mono_depth_landmark_scale_flatness_radius_arg = DeclareLaunchArgument(
+        'mono_depth.landmark_scale_flatness_radius',
+        default_value='4',
+        description='Pixel radius used to detect depth edges around scale landmarks.',
+    )
+    mono_depth_landmark_scale_max_relative_depth_variation_arg = (
+        DeclareLaunchArgument(
+            'mono_depth.landmark_scale_max_relative_depth_variation',
+            default_value='0.15',
+            description=(
+                'Maximum local relative depth variation before rejecting a '
+                'scale landmark.'
+            ),
+        )
+    )
 
     mono_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -108,10 +135,26 @@ def generate_launch_description():
             'mono_depth.scale_alignment_method': LaunchConfiguration(
                 'mono_depth.scale_alignment_method'
             ),
+            'mono_depth.icp_only_da3_overlap_fusion': LaunchConfiguration(
+                'mono_depth.icp_only_da3_overlap_fusion'
+            ),
+            'mono_depth.visualize_landmark_scale_alignment': (
+                LaunchConfiguration(
+                    'mono_depth.visualize_landmark_scale_alignment'
+                )
+            ),
+            'mono_depth.landmark_scale_flatness_radius': LaunchConfiguration(
+                'mono_depth.landmark_scale_flatness_radius'
+            ),
+            'mono_depth.landmark_scale_max_relative_depth_variation': (
+                LaunchConfiguration(
+                    'mono_depth.landmark_scale_max_relative_depth_variation'
+                )
+            ),
             'mono_depth.depth_weight_range_ref': '20.0',
             'mono_depth.visualize_weights': 'false',
-            'dense_map.enabled': 'false',
-            'dense_map.voxel_resolution': '1.0',
+            'dense_map.enabled': 'true',
+            'dense_map.voxel_resolution': '0.5',
         }.items(),
     )
 
@@ -126,5 +169,9 @@ def generate_launch_description():
         mono_depth_min_distance_arg,
         mono_depth_min_confidence_arg,
         mono_depth_scale_alignment_method_arg,
+        mono_depth_icp_only_da3_overlap_fusion_arg,
+        mono_depth_visualize_landmark_scale_alignment_arg,
+        mono_depth_landmark_scale_flatness_radius_arg,
+        mono_depth_landmark_scale_max_relative_depth_variation_arg,
         mono_launch,
     ])

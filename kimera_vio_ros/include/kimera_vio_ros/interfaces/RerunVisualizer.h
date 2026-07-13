@@ -620,6 +620,27 @@ public:
       this->drawScalar((scale_alignment_path / "metrics" / name).string(),
                        value);
     }
+    const bool visualization_changed =
+        !last_landmark_scale_visualization_frame_id_.has_value() ||
+        *last_landmark_scale_visualization_frame_id_ !=
+            mono_depth_map_output->selected_scale_alignment_frame_id ||
+        !last_landmark_scale_visualization_result_.has_value() ||
+        *last_landmark_scale_visualization_result_ != alignment;
+    if (visualization_changed &&
+        !mono_depth_map_output->landmark_scale_alignment_visualization_bgr
+             .empty()) {
+      this->drawImage(
+          scale_alignment_path / "landmark_samples",
+          mono_depth_map_output->landmark_scale_alignment_visualization_bgr,
+          false);
+      VLOG(1) << "Rerun landmark-scale overlay: frame_id="
+              << mono_depth_map_output->selected_scale_alignment_frame_id
+              << ", samples=" << alignment.landmark_samples.size() << ", path="
+              << (scale_alignment_path / "landmark_samples").string();
+      last_landmark_scale_visualization_frame_id_ =
+          mono_depth_map_output->selected_scale_alignment_frame_id;
+      last_landmark_scale_visualization_result_ = alignment;
+    }
     this->drawScalar(
         (map_ / odom_ / "mono_depth" / "window_keyframes").string(),
         static_cast<double>(mono_depth_map_output->window_keyframes));
@@ -702,9 +723,37 @@ public:
                      icp_only.max_rotation_delta_deg);
     this->drawScalar((icp_only_path / "optimization_ms").string(),
                      icp_only.optimization_ms);
-    this->drawScalar((icp_only_path / "window_keyframes").string(),
-                     static_cast<double>(
-                         mono_depth_map_output->icp_only_window_keyframes));
+    this->drawScalar((icp_only_path / "da3_overlap_fusion").string(),
+                     icp_only.da3_overlap_fusion ? 1.0 : 0.0);
+    this->drawScalar(
+        (icp_only_path / "window_keyframes").string(),
+        static_cast<double>(mono_depth_map_output->icp_only_window_keyframes));
+    if (icp_only.da3_overlap_fusion) {
+      const std::filesystem::path overlap_path = icp_only_path / "da3_overlap";
+      this->drawScalar((overlap_path / "pair_count").string(),
+                       static_cast<double>(icp_only.da3_pair_count));
+      this->drawScalar((overlap_path / "fused_view_count").string(),
+                       static_cast<double>(icp_only.da3_fused_view_count));
+      this->drawScalar((overlap_path / "retained_view_count").string(),
+                       static_cast<double>(icp_only.da3_retained_view_count));
+      this->drawScalar(
+          (overlap_path / "retained_keyframe_count").string(),
+          static_cast<double>(icp_only.da3_retained_keyframe_count));
+      this->drawScalar((overlap_path / "retained_point_count").string(),
+                       static_cast<double>(
+                           mono_depth_map_output->icp_only_window_cloud.size()));
+      this->drawScalar((overlap_path / "component_reset_count").string(),
+                       static_cast<double>(icp_only.da3_component_reset_count));
+      this->drawScalar(
+          (overlap_path / "overlap_candidate_count").string(),
+          static_cast<double>(icp_only.da3_overlap_candidate_count));
+      this->drawScalar((overlap_path / "overlap_inlier_count").string(),
+                       static_cast<double>(icp_only.da3_overlap_inlier_count));
+      this->drawScalar((overlap_path / "overlap_log_rmse").string(),
+                       icp_only.da3_overlap_log_rmse);
+      this->drawScalar((overlap_path / "last_pair_scale").string(),
+                       icp_only.da3_last_pair_scale);
+    }
 
     std::vector<Eigen::Vector3f> icp_only_points;
     std::vector<rerun::Color> icp_only_colors;
@@ -713,35 +762,34 @@ public:
     icp_only_colors.reserve(
         mono_depth_map_output->icp_only_window_colors.size());
     for (std::size_t i = 0u;
-         i < mono_depth_map_output->icp_only_window_cloud.size();
-         ++i) {
+         i < mono_depth_map_output->icp_only_window_cloud.size(); ++i) {
       icp_only_points.push_back(
           mono_depth_map_output->icp_only_window_cloud[i].cast<float>());
       if (i < mono_depth_map_output->icp_only_window_colors.size()) {
         const Eigen::Vector4f &color =
             mono_depth_map_output->icp_only_window_colors[i];
-        icp_only_colors.emplace_back(
-            color.x(), color.y(), color.z(), color.w());
+        icp_only_colors.emplace_back(color.x(), color.y(), color.z(),
+                                     color.w());
       } else {
         icp_only_colors.emplace_back(180, 180, 180, 180);
       }
     }
     const std::string icp_only_window_path =
-        (map_ / odom_ / "mono_depth" / "icp_only" / "window").string();
+        (map_ / odom_ / "mono_depth" / "icp_only" /
+         (icp_only.da3_overlap_fusion ? "da3_overlap" : "icp") / "window")
+            .string();
     if (icp_only_points.empty()) {
-      this->rec()->log_with_static(
-          icp_only_window_path, false, rerun::Points3D(icp_only_points));
+      this->rec()->log_with_static(icp_only_window_path, false,
+                                   rerun::Points3D(icp_only_points));
       return;
     }
     rerun::Collection<rerun::components::Radius> icp_only_radii;
     icp_only_radii.take_ownership(
         rerun::components::Radius(mono_depth_map_output->point_radius));
-    this->rec()->log_with_static(
-        icp_only_window_path,
-        false,
-        rerun::Points3D(icp_only_points)
-            .with_colors(icp_only_colors)
-            .with_radii(icp_only_radii));
+    this->rec()->log_with_static(icp_only_window_path, false,
+                                 rerun::Points3D(icp_only_points)
+                                     .with_colors(icp_only_colors)
+                                     .with_radii(icp_only_radii));
   }
 
   void drawDenseMap(const VIO::VisualizerInput &input) {
@@ -987,6 +1035,9 @@ private:
   FrameIDTimestampMap timestamp_map_;
 
   std::optional<std::pair<FrameId, FrameId>> last_odom_pair_{std::nullopt};
+  std::optional<FrameId> last_landmark_scale_visualization_frame_id_;
+  std::optional<MonoDepthScaleAlignmentResult>
+      last_landmark_scale_visualization_result_;
   ISAM2 isam2_;
 
   std::mutex rerun_mutex_;
