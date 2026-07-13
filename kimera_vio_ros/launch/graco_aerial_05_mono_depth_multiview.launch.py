@@ -60,6 +60,13 @@ def generate_launch_description():
         default_value='1.1',
         description='Minimum DA3 multi-view confidence.',
     )
+    mono_depth_scale_alignment_method_arg = DeclareLaunchArgument(
+        'mono_depth.scale_alignment_method',
+        default_value='landmarks',
+        description=(
+            'Mono-depth scale alignment: relative_pose, landmarks, or none.'
+        ),
+    )
 
     mono_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -98,7 +105,9 @@ def generate_launch_description():
                 'mono_depth.min_confidence'
             ),
             'mono_depth.visualize_confidence': 'false',
-            'mono_depth.align_scale_with_landmarks': 'false',
+            'mono_depth.scale_alignment_method': LaunchConfiguration(
+                'mono_depth.scale_alignment_method'
+            ),
             'mono_depth.depth_weight_range_ref': '20.0',
             'mono_depth.visualize_weights': 'false',
             'dense_map.enabled': 'false',
@@ -116,5 +125,6 @@ def generate_launch_description():
         mono_depth_engine_arg,
         mono_depth_min_distance_arg,
         mono_depth_min_confidence_arg,
+        mono_depth_scale_alignment_method_arg,
         mono_launch,
     ])

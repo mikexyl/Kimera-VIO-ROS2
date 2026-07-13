@@ -12,8 +12,8 @@
 #include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <future>
 #include <limits>
@@ -101,13 +101,10 @@ public:
                         params.recording_id, params.result_dir,
                         params.rerun_host) {}
 
-  RerunVisualizer(std::string base_link_frame_id,
-                  std::string odom_frame_id,
-                  std::string map_frame_id,
-                  std::string gt_csv_file,
+  RerunVisualizer(std::string base_link_frame_id, std::string odom_frame_id,
+                  std::string map_frame_id, std::string gt_csv_file,
                   std::optional<std::string> recording_id,
-                  std::string result_dir,
-                  std::string rerun_host)
+                  std::string result_dir, std::string rerun_host)
       : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
             "kimera_vio", recording_id, rerun_host)),
@@ -153,7 +150,10 @@ public:
     last_save_time_ = std::chrono::steady_clock::now();
   }
 
-  virtual ~RerunVisualizer() = default;
+  ~RerunVisualizer() override {
+    RemoveGlogCustomSink();
+    RestoreStdCout();
+  }
 
   // Hold the active custom sink so it persists for the program lifetime.
   static std::unique_ptr<CustomLogSink> g_custom_sink;
@@ -337,16 +337,15 @@ public:
                          aria::viz::ColorMap::kLightBlue, 0.5f, false);
 
     const cv::Mat &K = frame->cam_param_.K_;
-    std::array<float, 9> K_vec = {
-        static_cast<float>(K.at<double>(0, 0)), // fx
-        0.f,
-        0.f,
-        0.f,
-        static_cast<float>(K.at<double>(1, 1)), // fy
-        0.f,
-        static_cast<float>(K.at<double>(0, 2)), // cx
-        static_cast<float>(K.at<double>(1, 2)), // cy
-        1.f};
+    std::array<float, 9> K_vec = {static_cast<float>(K.at<double>(0, 0)), // fx
+                                  0.f,
+                                  0.f,
+                                  0.f,
+                                  static_cast<float>(K.at<double>(1, 1)), // fy
+                                  0.f,
+                                  static_cast<float>(K.at<double>(0, 2)), // cx
+                                  static_cast<float>(K.at<double>(1, 2)), // cy
+                                  1.f};
     rerun::components::PinholeProjection image_from_camera(K_vec);
 
     this->rec()->log_with_static(
@@ -426,10 +425,10 @@ public:
     }
   }
 
-  static bool isMonoDepthIcpFactor(
-      const gtsam::NonlinearFactor::shared_ptr &factor) {
-    return std::dynamic_pointer_cast<
-               gtsam_points::IntegratedWeightedICPFactor>(factor) != nullptr ||
+  static bool
+  isMonoDepthIcpFactor(const gtsam::NonlinearFactor::shared_ptr &factor) {
+    return std::dynamic_pointer_cast<gtsam_points::IntegratedWeightedICPFactor>(
+               factor) != nullptr ||
            std::dynamic_pointer_cast<gtsam_points::IntegratedVGICPFactor>(
                factor) != nullptr;
   }
@@ -485,15 +484,14 @@ public:
       }
       ++pose_connectivity_factor_count;
 
-      const std::pair<Point3, Point3> edge(
-          pose_positions.at(pose_keys[0]), pose_positions.at(pose_keys[1]));
+      const std::pair<Point3, Point3> edge(pose_positions.at(pose_keys[0]),
+                                           pose_positions.at(pose_keys[1]));
       if (isMonoDepthIcpFactor(factor)) {
         icp_edges.push_back(edge);
         icp_endpoint_keys.insert(pose_keys[0]);
         icp_endpoint_keys.insert(pose_keys[1]);
         icp_edge_labels.push_back(
-            fmt::format("ICP {}-{}",
-                        gtsam::DefaultKeyFormatter(pose_keys[0]),
+            fmt::format("ICP {}-{}", gtsam::DefaultKeyFormatter(pose_keys[0]),
                         gtsam::DefaultKeyFormatter(pose_keys[1])));
       } else {
         regular_edges.push_back(edge);
@@ -501,23 +499,13 @@ public:
     }
 
     const Eigen::Vector4f node_color(225.0f, 225.0f, 225.0f, 255.0f);
-    const Eigen::Vector4f regular_edge_color(
-        105.0f, 155.0f, 230.0f, 130.0f);
+    const Eigen::Vector4f regular_edge_color(105.0f, 155.0f, 230.0f, 130.0f);
     const Eigen::Vector4f icp_color(255.0f, 35.0f, 180.0f, 255.0f);
-    this->drawPoints(graph_path / "nodes",
-                     node_positions,
-                     node_color,
-                     {0.08f},
-                     node_labels,
-                     false);
-    this->drawLines(graph_path / "edges" / "other",
-                    regular_edges,
-                    {regular_edge_color},
-                    1.5f);
-    this->drawLines(graph_path / "edges" / "icp",
-                    icp_edges,
-                    {icp_color},
-                    5.0f,
+    this->drawPoints(graph_path / "nodes", node_positions, node_color, {0.08f},
+                     node_labels, false);
+    this->drawLines(graph_path / "edges" / "other", regular_edges,
+                    {regular_edge_color}, 1.5f);
+    this->drawLines(graph_path / "edges" / "icp", icp_edges, {icp_color}, 5.0f,
                     icp_edge_labels);
 
     std::vector<Point3> icp_endpoint_positions;
@@ -526,12 +514,8 @@ public:
       icp_endpoint_positions.push_back(pose_positions.at(key));
       icp_endpoint_labels.push_back(gtsam::DefaultKeyFormatter(key));
     }
-    this->drawPoints(graph_path / "icp_endpoints",
-                     icp_endpoint_positions,
-                     icp_color,
-                     {0.13f},
-                     icp_endpoint_labels,
-                     false);
+    this->drawPoints(graph_path / "icp_endpoints", icp_endpoint_positions,
+                     icp_color, {0.13f}, icp_endpoint_labels, false);
 
     this->drawScalar((graph_path / "stats" / "pose_nodes").string(),
                      static_cast<double>(node_positions.size()));
@@ -542,13 +526,12 @@ public:
         static_cast<double>(pose_connectivity_factor_count));
     this->drawScalar((graph_path / "stats" / "icp_factors").string(),
                      static_cast<double>(icp_edges.size()));
-    LOG_EVERY_N(INFO, 30)
-        << "Rerun local-window factor graph: pose_nodes="
-        << node_positions.size()
-        << ", active_factors=" << active_factor_count
-        << ", pose_connectivity_factors="
-        << pose_connectivity_factor_count
-        << ", icp_factors=" << icp_edges.size();
+    LOG_EVERY_N(INFO, 30) << "Rerun local-window factor graph: pose_nodes="
+                          << node_positions.size()
+                          << ", active_factors=" << active_factor_count
+                          << ", pose_connectivity_factors="
+                          << pose_connectivity_factor_count
+                          << ", icp_factors=" << icp_edges.size();
   }
 
   void visualizeLandmarks(std::filesystem::path base_frame,
@@ -572,8 +555,7 @@ public:
     this->drawScalar((confidence_path / "retained_fraction").string(),
                      packet->confidence_retained_fraction);
 
-    if (!packet->confidence.empty() &&
-        packet->confidence.type() == CV_32FC1) {
+    if (!packet->confidence.empty() && packet->confidence.type() == CV_32FC1) {
       cv::Mat scaled(packet->confidence.size(), CV_8UC1, cv::Scalar(0));
       constexpr float kConfidenceDisplayMax = 4.0f;
       for (int row = 0; row < packet->confidence.rows; ++row) {
@@ -584,8 +566,8 @@ public:
             const float normalized =
                 std::clamp(source[col], 0.0f, kConfidenceDisplayMax) /
                 kConfidenceDisplayMax;
-            destination[col] = static_cast<uint8_t>(
-                std::lround(normalized * 255.0f));
+            destination[col] =
+                static_cast<uint8_t>(std::lround(normalized * 255.0f));
           }
         }
       }
@@ -597,8 +579,7 @@ public:
     if (!packet->confidence_mask.empty() &&
         packet->confidence_mask.type() == CV_8UC1) {
       this->drawImage(confidence_path / "filtered_mask",
-                      packet->confidence_mask,
-                      false);
+                      packet->confidence_mask, false);
     }
   }
 
@@ -609,34 +590,45 @@ public:
       return;
     }
 
-    this->drawScalar((map_ / odom_ / "mono_depth" / "scale").string(),
-                     mono_depth_map_output->scale);
+    const std::filesystem::path scale_alignment_path =
+        map_ / odom_ / baselink_ / "mono_depth" / "scale_alignment";
+    const auto &alignment = mono_depth_map_output->selected_scale_alignment;
+    this->drawScalar((scale_alignment_path / "method").string(),
+                     static_cast<double>(alignment.method));
+    this->drawScalar((scale_alignment_path / "absolute_scale").string(),
+                     alignment.absolute_scale);
+    this->drawScalar((scale_alignment_path / "valid").string(),
+                     alignment.valid ? 1.0 : 0.0);
+    this->drawScalar((scale_alignment_path / "candidate_count").string(),
+                     static_cast<double>(alignment.candidate_count));
+    this->drawScalar((scale_alignment_path / "inlier_count").string(),
+                     static_cast<double>(alignment.inlier_count));
+    this->drawScalar((scale_alignment_path / "log_rmse").string(),
+                     alignment.log_rmse);
     this->drawScalar(
-        (map_ / odom_ / "mono_depth" / "scale_pairs").string(),
-        static_cast<double>(mono_depth_map_output->scale_inlier_pairs));
-    this->drawScalar((map_ / odom_ / "mono_depth" / "scale_log_rmse").string(),
-                     mono_depth_map_output->scale_log_rmse);
-    this->drawScalar((map_ / odom_ / "mono_depth" / "window_keyframes").string(),
-                     static_cast<double>(mono_depth_map_output->window_keyframes));
-    if (mono_depth_map_output->da3_pose_scale_valid) {
-      const std::filesystem::path pose_scale_path =
-          map_ / odom_ / "mono_depth" / "da3_pose_scale";
-      this->drawScalar((pose_scale_path / "depth_scale").string(),
-                       mono_depth_map_output->da3_pose_depth_scale);
-      this->drawScalar((pose_scale_path / "da3_camera_displacement").string(),
-                       mono_depth_map_output->da3_camera_displacement);
-      this->drawScalar(
-          (pose_scale_path / "odometry_camera_displacement").string(),
-          mono_depth_map_output->odometry_camera_displacement);
+        (scale_alignment_path / "selected_frame_id").string(),
+        static_cast<double>(
+            mono_depth_map_output->selected_scale_alignment_frame_id));
+    this->drawScalar((scale_alignment_path / "valid_window_packets").string(),
+                     static_cast<double>(
+                         mono_depth_map_output->valid_scale_alignment_packets));
+    this->drawScalar(
+        (scale_alignment_path / "rejected_window_packets").string(),
+        static_cast<double>(
+            mono_depth_map_output->rejected_scale_alignment_packets));
+    for (const auto &[name, value] : alignment.metrics) {
+      this->drawScalar((scale_alignment_path / "metrics" / name).string(),
+                       value);
     }
-    const auto& mono_depth_cloud =
-        mono_depth_map_output->window_cloud.empty()
-            ? mono_depth_map_output->keyframe_cloud
-            : mono_depth_map_output->window_cloud;
-    const auto& mono_depth_colors =
-        mono_depth_map_output->window_cloud.empty()
-            ? mono_depth_map_output->keyframe_colors
-            : mono_depth_map_output->window_colors;
+    this->drawScalar(
+        (map_ / odom_ / "mono_depth" / "window_keyframes").string(),
+        static_cast<double>(mono_depth_map_output->window_keyframes));
+    const auto &mono_depth_cloud = mono_depth_map_output->window_cloud.empty()
+                                       ? mono_depth_map_output->keyframe_cloud
+                                       : mono_depth_map_output->window_cloud;
+    const auto &mono_depth_colors = mono_depth_map_output->window_cloud.empty()
+                                        ? mono_depth_map_output->keyframe_colors
+                                        : mono_depth_map_output->window_colors;
     std::vector<Eigen::Vector3f> points;
     std::vector<rerun::Color> colors;
     points.reserve(mono_depth_cloud.size());
@@ -644,7 +636,7 @@ public:
     for (std::size_t i = 0u; i < mono_depth_cloud.size(); ++i) {
       points.push_back(mono_depth_cloud[i].cast<float>());
       if (i < mono_depth_colors.size()) {
-        const Eigen::Vector4f& color = mono_depth_colors[i];
+        const Eigen::Vector4f &color = mono_depth_colors[i];
         colors.emplace_back(color.x(), color.y(), color.z(), color.w());
       } else {
         colors.emplace_back(180, 180, 180, 180);
@@ -656,18 +648,18 @@ public:
       rerun::Collection<rerun::components::Radius> radii;
       radii.take_ownership(
           rerun::components::Radius(mono_depth_map_output->point_radius));
-      this->rec()->log_with_static(window_path,
-                                   false,
-                                   rerun::Points3D(points)
-                                       .with_colors(colors)
-                                       .with_radii(radii));
+      this->rec()->log_with_static(
+          window_path, false,
+          rerun::Points3D(points).with_colors(colors).with_radii(radii));
       if (mono_depth_map_output->window_weight_colors.size() ==
           mono_depth_cloud.size()) {
         std::vector<rerun::Color> weight_colors;
-        weight_colors.reserve(mono_depth_map_output->window_weight_colors.size());
-        for (const Eigen::Vector4f& color :
+        weight_colors.reserve(
+            mono_depth_map_output->window_weight_colors.size());
+        for (const Eigen::Vector4f &color :
              mono_depth_map_output->window_weight_colors) {
-          weight_colors.emplace_back(color.x(), color.y(), color.z(), color.w());
+          weight_colors.emplace_back(color.x(), color.y(), color.z(),
+                                     color.w());
         }
         this->rec()->log_with_static(
             (map_ / odom_ / "mono_depth" / "weights" / "window").string(),
@@ -679,6 +671,77 @@ public:
     } else {
       this->rec()->log_with_static(window_path, false, rerun::Points3D(points));
     }
+
+    const auto &icp_only = mono_depth_map_output->icp_only;
+    if (!icp_only.enabled) {
+      return;
+    }
+    const std::filesystem::path icp_only_path =
+        map_ / odom_ / baselink_ / "mono_depth" / "icp_only";
+    this->drawScalar((icp_only_path / "solution_available").string(),
+                     icp_only.solution_available ? 1.0 : 0.0);
+    this->drawScalar((icp_only_path / "valid").string(),
+                     icp_only.valid ? 1.0 : 0.0);
+    this->drawScalar((icp_only_path / "factor_count").string(),
+                     static_cast<double>(icp_only.factor_count));
+    this->drawScalar((icp_only_path / "pose_count").string(),
+                     static_cast<double>(icp_only.pose_count));
+    this->drawScalar((icp_only_path / "anchor_count").string(),
+                     static_cast<double>(icp_only.anchor_count));
+    this->drawScalar((icp_only_path / "iterations").string(),
+                     static_cast<double>(icp_only.iterations));
+    this->drawScalar((icp_only_path / "initial_error").string(),
+                     icp_only.initial_error);
+    this->drawScalar((icp_only_path / "final_error").string(),
+                     icp_only.final_error);
+    this->drawScalar((icp_only_path / "error_ratio").string(),
+                     icp_only.error_ratio);
+    this->drawScalar((icp_only_path / "max_translation_delta_m").string(),
+                     icp_only.max_translation_delta_m);
+    this->drawScalar((icp_only_path / "max_rotation_delta_deg").string(),
+                     icp_only.max_rotation_delta_deg);
+    this->drawScalar((icp_only_path / "optimization_ms").string(),
+                     icp_only.optimization_ms);
+    this->drawScalar((icp_only_path / "window_keyframes").string(),
+                     static_cast<double>(
+                         mono_depth_map_output->icp_only_window_keyframes));
+
+    std::vector<Eigen::Vector3f> icp_only_points;
+    std::vector<rerun::Color> icp_only_colors;
+    icp_only_points.reserve(
+        mono_depth_map_output->icp_only_window_cloud.size());
+    icp_only_colors.reserve(
+        mono_depth_map_output->icp_only_window_colors.size());
+    for (std::size_t i = 0u;
+         i < mono_depth_map_output->icp_only_window_cloud.size();
+         ++i) {
+      icp_only_points.push_back(
+          mono_depth_map_output->icp_only_window_cloud[i].cast<float>());
+      if (i < mono_depth_map_output->icp_only_window_colors.size()) {
+        const Eigen::Vector4f &color =
+            mono_depth_map_output->icp_only_window_colors[i];
+        icp_only_colors.emplace_back(
+            color.x(), color.y(), color.z(), color.w());
+      } else {
+        icp_only_colors.emplace_back(180, 180, 180, 180);
+      }
+    }
+    const std::string icp_only_window_path =
+        (map_ / odom_ / "mono_depth" / "icp_only" / "window").string();
+    if (icp_only_points.empty()) {
+      this->rec()->log_with_static(
+          icp_only_window_path, false, rerun::Points3D(icp_only_points));
+      return;
+    }
+    rerun::Collection<rerun::components::Radius> icp_only_radii;
+    icp_only_radii.take_ownership(
+        rerun::components::Radius(mono_depth_map_output->point_radius));
+    this->rec()->log_with_static(
+        icp_only_window_path,
+        false,
+        rerun::Points3D(icp_only_points)
+            .with_colors(icp_only_colors)
+            .with_radii(icp_only_radii));
   }
 
   void drawDenseMap(const VIO::VisualizerInput &input) {
@@ -713,11 +776,9 @@ public:
       rerun::Collection<rerun::components::Radius> radii;
       radii.take_ownership(
           rerun::components::Radius(dense_map_output->point_radius));
-      this->rec()->log_with_static((dense_path / "map").string(),
-                                   false,
-                                   rerun::Points3D(points)
-                                       .with_colors(colors)
-                                       .with_radii(radii));
+      this->rec()->log_with_static(
+          (dense_path / "map").string(), false,
+          rerun::Points3D(points).with_colors(colors).with_radii(radii));
     }
   }
 

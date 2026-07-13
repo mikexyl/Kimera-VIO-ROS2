@@ -275,10 +275,10 @@ def generate_launch_description():
         default_value='false',
         description='Enable verbose DA3 TensorRT logging.'
     )
-    mono_depth_align_scale_with_landmarks_arg = DeclareLaunchArgument(
-        'mono_depth.align_scale_with_landmarks',
-        default_value='false',
-        description='Align DA3 mono-depth scale from backend landmarks.'
+    mono_depth_scale_alignment_method_arg = DeclareLaunchArgument(
+        'mono_depth.scale_alignment_method',
+        default_value='none',
+        description='Mono-depth scale alignment: none, relative_pose, or landmarks.'
     )
     dense_map_enabled_arg = DeclareLaunchArgument(
         'dense_map.enabled',
@@ -360,7 +360,7 @@ def generate_launch_description():
         'mono_depth.visualize_confidence': LaunchConfiguration('mono_depth.visualize_confidence'),
         'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
-        'mono_depth.align_scale_with_landmarks': LaunchConfiguration('mono_depth.align_scale_with_landmarks'),
+        'mono_depth.scale_alignment_method': LaunchConfiguration('mono_depth.scale_alignment_method'),
         'dense_map.enabled': LaunchConfiguration('dense_map.enabled'),
         'dense_map.backend': LaunchConfiguration('dense_map.backend'),
         'dense_map.voxel_resolution': LaunchConfiguration('dense_map.voxel_resolution'),
@@ -452,7 +452,7 @@ def generate_launch_description():
         mono_depth_visualize_confidence_arg,
         mono_depth_point_radius_arg,
         mono_depth_verbose_arg,
-        mono_depth_align_scale_with_landmarks_arg,
+        mono_depth_scale_alignment_method_arg,
         dense_map_enabled_arg,
         dense_map_backend_arg,
         dense_map_voxel_resolution_arg,

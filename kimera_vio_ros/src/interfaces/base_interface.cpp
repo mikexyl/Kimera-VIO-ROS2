@@ -52,23 +52,21 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       "rerun_host", "rerun+http://127.0.0.1:9876/proxy");
   const auto use_rerun_visualizer =
       node_->declare_parameter<bool>("use_rerun_visualizer", FLAGS_visualize);
-  VIO::MonoDepthParams& mono_depth_params = vio_params_->mono_depth_params_;
+  VIO::MonoDepthParams &mono_depth_params = vio_params_->mono_depth_params_;
   mono_depth_params.enabled =
       node_->declare_parameter<bool>("mono_depth.enabled", false);
   mono_depth_params.engine_path =
       node_->declare_parameter<std::string>("mono_depth.engine_path", "");
   mono_depth_params.mode = VIO::monoDepthModeFromString(
       node_->declare_parameter<std::string>("mono_depth.mode", "single_view"));
-  mono_depth_params.min_keyframe_distance_m =
-      node_->declare_parameter<double>("mono_depth.min_keyframe_distance_m",
-                                       1.0);
+  mono_depth_params.min_keyframe_distance_m = node_->declare_parameter<double>(
+      "mono_depth.min_keyframe_distance_m", 1.0);
   mono_depth_params.point_stride =
       node_->declare_parameter<int>("mono_depth.point_stride", 4);
   mono_depth_params.max_points_per_keyframe =
       node_->declare_parameter<int>("mono_depth.max_points_per_keyframe", 5000);
-  mono_depth_params.visualization_point_stride =
-      node_->declare_parameter<int>("mono_depth.visualization_point_stride",
-                                    mono_depth_params.point_stride);
+  mono_depth_params.visualization_point_stride = node_->declare_parameter<int>(
+      "mono_depth.visualization_point_stride", mono_depth_params.point_stride);
   mono_depth_params.visualization_max_points_per_keyframe =
       node_->declare_parameter<int>(
           "mono_depth.visualization_max_points_per_keyframe",
@@ -77,9 +75,8 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       node_->declare_parameter<double>("mono_depth.min_depth_m", 0.1);
   mono_depth_params.max_depth_m =
       node_->declare_parameter<double>("mono_depth.max_depth_m", 30.0);
-  mono_depth_params.depth_weighting_enabled =
-      node_->declare_parameter<bool>("mono_depth.depth_weighting_enabled",
-                                     true);
+  mono_depth_params.depth_weighting_enabled = node_->declare_parameter<bool>(
+      "mono_depth.depth_weighting_enabled", true);
   mono_depth_params.depth_weight_normal_radius =
       node_->declare_parameter<int>("mono_depth.depth_weight_normal_radius", 2);
   mono_depth_params.depth_weight_min =
@@ -87,50 +84,47 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   mono_depth_params.depth_weight_grazing_power =
       node_->declare_parameter<double>("mono_depth.depth_weight_grazing_power",
                                        1.0);
-  mono_depth_params.depth_weight_range_ref =
-      node_->declare_parameter<double>("mono_depth.depth_weight_range_ref",
-                                       0.0);
-  mono_depth_params.depth_weight_range_power =
-      node_->declare_parameter<double>("mono_depth.depth_weight_range_power",
-                                       2.0);
-  mono_depth_params.depth_weight_range_min =
-      node_->declare_parameter<double>("mono_depth.depth_weight_range_min",
-                                       0.05);
+  mono_depth_params.depth_weight_range_ref = node_->declare_parameter<double>(
+      "mono_depth.depth_weight_range_ref", 0.0);
+  mono_depth_params.depth_weight_range_power = node_->declare_parameter<double>(
+      "mono_depth.depth_weight_range_power", 2.0);
+  mono_depth_params.depth_weight_range_min = node_->declare_parameter<double>(
+      "mono_depth.depth_weight_range_min", 0.05);
   mono_depth_params.visualize_weights =
       node_->declare_parameter<bool>("mono_depth.visualize_weights", false);
   mono_depth_params.min_confidence =
       node_->declare_parameter<double>("mono_depth.min_confidence", 1.1);
   mono_depth_params.visualize_confidence =
       node_->declare_parameter<bool>("mono_depth.visualize_confidence", false);
-  mono_depth_params.point_radius =
-      static_cast<float>(node_->declare_parameter<double>(
-          "mono_depth.point_radius", 0.005));
+  mono_depth_params.point_radius = static_cast<float>(
+      node_->declare_parameter<double>("mono_depth.point_radius", 0.005));
   mono_depth_params.verbose =
       node_->declare_parameter<bool>("mono_depth.verbose", false);
-  mono_depth_params.align_scale_with_landmarks =
-      node_->declare_parameter<bool>("mono_depth.align_scale_with_landmarks",
-                                     false);
-  VIO::DenseMapParams& dense_map_params = vio_params_->dense_map_params_;
+  mono_depth_params.scale_alignment_method =
+      VIO::monoDepthScaleAlignmentMethodFromString(
+          node_->declare_parameter<std::string>(
+              "mono_depth.scale_alignment_method", "none"));
+  VIO::validateMonoDepthScaleAlignmentConfiguration(
+      mono_depth_params.mode, mono_depth_params.scale_alignment_method);
+  VIO::DenseMapParams &dense_map_params = vio_params_->dense_map_params_;
   dense_map_params.enabled =
       node_->declare_parameter<bool>("dense_map.enabled", true);
-  dense_map_params.backend = VIO::denseMapBackendFromString(
-      node_->declare_parameter<std::string>("dense_map.backend",
-                                           "gaussian_voxel_map"));
+  dense_map_params.backend =
+      VIO::denseMapBackendFromString(node_->declare_parameter<std::string>(
+          "dense_map.backend", "gaussian_voxel_map"));
   dense_map_params.voxel_resolution =
       node_->declare_parameter<double>("dense_map.voxel_resolution", 0.15);
-  dense_map_params.point_radius =
-      static_cast<float>(node_->declare_parameter<double>(
-          "dense_map.point_radius", 0.025));
+  dense_map_params.point_radius = static_cast<float>(
+      node_->declare_parameter<double>("dense_map.point_radius", 0.025));
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
   if (use_rerun_visualizer) {
     rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
-        VIO::RerunVisualizer::Params{
-            .base_link_frame_id = base_link_frame_id_,
-            .odom_frame_id = odom_frame_id_,
-            .map_frame_id = map_frame_id_,
-            .recording_id = rerun_recording_id,
-            .result_dir = rerun_result_dir,
-            .rerun_host = rerun_host});
+        VIO::RerunVisualizer::Params{.base_link_frame_id = base_link_frame_id_,
+                                     .odom_frame_id = odom_frame_id_,
+                                     .map_frame_id = map_frame_id_,
+                                     .recording_id = rerun_recording_id,
+                                     .result_dir = rerun_result_dir,
+                                     .rerun_host = rerun_host});
   }
 
   vio_pipeline_.reset();
@@ -146,10 +140,9 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   }
 
   if (FLAGS_use_lcd != 0) {
-    ros_lcd_visualizer_ =
-        std::make_unique<RosLoopClosureVisualizer>(node_);
+    ros_lcd_visualizer_ = std::make_unique<RosLoopClosureVisualizer>(node_);
     vio_pipeline_->registerLcdOutputCallback(
-        [this](const VIO::LcdOutput::Ptr& msg) {
+        [this](const VIO::LcdOutput::Ptr &msg) {
           CHECK_NOTNULL(ros_lcd_visualizer_.get())->publishLcdOutput(msg);
         });
   }
