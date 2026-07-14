@@ -177,6 +177,16 @@ def generate_launch_description():
         default_value='single_view',
         description='DA3 monocular depth mode: single_view or multi_view.'
     )
+    mono_depth_da3_keyframe_selection_method_arg = DeclareLaunchArgument(
+        'mono_depth.da3_keyframe_selection_method',
+        default_value='distance',
+        description='DA3 two-view endpoint selection: distance or fixed_skip.'
+    )
+    mono_depth_da3_keyframe_skip_arg = DeclareLaunchArgument(
+        'mono_depth.da3_keyframe_skip',
+        default_value='0',
+        description='VIO keyframes held between DA3 endpoints in fixed_skip mode.'
+    )
     mono_depth_min_keyframe_distance_arg = DeclareLaunchArgument(
         'mono_depth.min_keyframe_distance_m',
         default_value='3.0',
@@ -391,6 +401,12 @@ def generate_launch_description():
         'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
         'mono_depth.engine_path': LaunchConfiguration('mono_depth.engine_path'),
         'mono_depth.mode': LaunchConfiguration('mono_depth.mode'),
+        'mono_depth.da3_keyframe_selection_method': LaunchConfiguration(
+            'mono_depth.da3_keyframe_selection_method'
+        ),
+        'mono_depth.da3_keyframe_skip': LaunchConfiguration(
+            'mono_depth.da3_keyframe_skip'
+        ),
         'mono_depth.min_keyframe_distance_m': LaunchConfiguration('mono_depth.min_keyframe_distance_m'),
         'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
         'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
@@ -543,6 +559,8 @@ def generate_launch_description():
         mono_depth_enabled_arg,
         mono_depth_engine_path_arg,
         mono_depth_mode_arg,
+        mono_depth_da3_keyframe_selection_method_arg,
+        mono_depth_da3_keyframe_skip_arg,
         mono_depth_min_keyframe_distance_arg,
         mono_depth_point_stride_arg,
         mono_depth_max_points_per_keyframe_arg,

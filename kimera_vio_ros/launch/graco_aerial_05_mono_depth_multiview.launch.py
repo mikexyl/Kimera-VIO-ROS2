@@ -50,6 +50,16 @@ def generate_launch_description():
         default_value=DA3_TWO_VIEW_ENGINE,
         description='Pose-free two-view DA3 TensorRT engine.',
     )
+    mono_depth_da3_keyframe_selection_method_arg = DeclareLaunchArgument(
+        'mono_depth.da3_keyframe_selection_method',
+        default_value='distance',
+        description='DA3 two-view endpoint selection: distance or fixed_skip.',
+    )
+    mono_depth_da3_keyframe_skip_arg = DeclareLaunchArgument(
+        'mono_depth.da3_keyframe_skip',
+        default_value='0',
+        description='VIO keyframes held between DA3 endpoints in fixed_skip mode.',
+    )
     mono_depth_min_distance_arg = DeclareLaunchArgument(
         'mono_depth.min_keyframe_distance_m',
         default_value='1.0',
@@ -132,6 +142,12 @@ def generate_launch_description():
                 'mono_depth.engine_path'
             ),
             'mono_depth.mode': 'multi_view',
+            'mono_depth.da3_keyframe_selection_method': LaunchConfiguration(
+                'mono_depth.da3_keyframe_selection_method'
+            ),
+            'mono_depth.da3_keyframe_skip': LaunchConfiguration(
+                'mono_depth.da3_keyframe_skip'
+            ),
             'mono_depth.min_keyframe_distance_m': LaunchConfiguration(
                 'mono_depth.min_keyframe_distance_m'
             ),
@@ -176,6 +192,8 @@ def generate_launch_description():
         start_zenoh_router_arg,
         rerun_host_arg,
         mono_depth_engine_arg,
+        mono_depth_da3_keyframe_selection_method_arg,
+        mono_depth_da3_keyframe_skip_arg,
         mono_depth_min_distance_arg,
         mono_depth_min_confidence_arg,
         mono_depth_scale_alignment_method_arg,

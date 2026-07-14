@@ -49,6 +49,8 @@
   <arg name="mono_depth.visualize_landmark_scale_alignment" default="false"/>
   <arg name="mono_depth.landmark_scale_flatness_radius" default="4"/>
   <arg name="mono_depth.landmark_scale_max_relative_depth_variation" default="0.15"/>
+  <arg name="mono_depth.da3_keyframe_selection_method" default="distance"/>
+  <arg name="mono_depth.da3_keyframe_skip" default="0"/>
   <arg name="mono_depth.min_keyframe_distance_m" default="1.0"/>
   <arg name="mono_depth.depth_weighting_enabled" default="true"/>
   <arg name="mono_depth.depth_weight_normal_radius" default="2"/>
@@ -98,6 +100,8 @@
     <param name="mono_depth.visualize_landmark_scale_alignment" value="$(var mono_depth.visualize_landmark_scale_alignment)"/>
     <param name="mono_depth.landmark_scale_flatness_radius" value="$(var mono_depth.landmark_scale_flatness_radius)"/>
     <param name="mono_depth.landmark_scale_max_relative_depth_variation" value="$(var mono_depth.landmark_scale_max_relative_depth_variation)"/>
+    <param name="mono_depth.da3_keyframe_selection_method" value="$(var mono_depth.da3_keyframe_selection_method)"/>
+    <param name="mono_depth.da3_keyframe_skip" value="$(var mono_depth.da3_keyframe_skip)"/>
     <param name="mono_depth.min_keyframe_distance_m" value="$(var mono_depth.min_keyframe_distance_m)"/>
     <param name="mono_depth.depth_weighting_enabled" value="$(var mono_depth.depth_weighting_enabled)"/>
     <param name="mono_depth.depth_weight_normal_radius" value="$(var mono_depth.depth_weight_normal_radius)"/>
