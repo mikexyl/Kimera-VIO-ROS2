@@ -7,6 +7,7 @@
 #include <gtsam_points/factors/integrated_weighted_icp_factor.hpp>
 #include <kimera-vio/loopclosure/LoopClosureDetector-definitions.h>
 #include <kimera-vio/loopclosure/LoopClosureDetector.h>
+#include <kimera-vio/factors/CameraAwareEssentialMatrixFactor.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
 #include <opencv2/imgproc.hpp>
 #include <spdlog/fmt/fmt.h>
@@ -433,6 +434,13 @@ public:
                factor) != nullptr;
   }
 
+  static bool
+  isDa3EssentialMatrixFactor(
+      const gtsam::NonlinearFactor::shared_ptr &factor) {
+    return std::dynamic_pointer_cast<CameraAwareEssentialMatrixFactor>(factor) !=
+           nullptr;
+  }
+
   void drawLocalWindowFactorGraph(const VIO::VisualizerInput &input) {
     const gtsam::Values &state = input.backend_output_->state_;
     const gtsam::NonlinearFactorGraph &factor_graph =
@@ -460,7 +468,9 @@ public:
 
     std::vector<std::pair<Point3, Point3>> regular_edges;
     std::vector<std::pair<Point3, Point3>> icp_edges;
+    std::vector<std::pair<Point3, Point3>> essential_edges;
     std::vector<std::string> icp_edge_labels;
+    std::vector<std::string> essential_edge_labels;
     std::set<gtsam::Key> icp_endpoint_keys;
     std::size_t active_factor_count = 0u;
     std::size_t pose_connectivity_factor_count = 0u;
@@ -486,7 +496,12 @@ public:
 
       const std::pair<Point3, Point3> edge(pose_positions.at(pose_keys[0]),
                                            pose_positions.at(pose_keys[1]));
-      if (isMonoDepthIcpFactor(factor)) {
+      if (isDa3EssentialMatrixFactor(factor)) {
+        essential_edges.push_back(edge);
+        essential_edge_labels.push_back(fmt::format(
+            "DA3 E {}-{}", gtsam::DefaultKeyFormatter(pose_keys[0]),
+            gtsam::DefaultKeyFormatter(pose_keys[1])));
+      } else if (isMonoDepthIcpFactor(factor)) {
         icp_edges.push_back(edge);
         icp_endpoint_keys.insert(pose_keys[0]);
         icp_endpoint_keys.insert(pose_keys[1]);
@@ -501,12 +516,15 @@ public:
     const Eigen::Vector4f node_color(225.0f, 225.0f, 225.0f, 255.0f);
     const Eigen::Vector4f regular_edge_color(105.0f, 155.0f, 230.0f, 130.0f);
     const Eigen::Vector4f icp_color(255.0f, 35.0f, 180.0f, 255.0f);
+    const Eigen::Vector4f essential_color(30.0f, 220.0f, 255.0f, 255.0f);
     this->drawPoints(graph_path / "nodes", node_positions, node_color, {0.08f},
                      node_labels, false);
     this->drawLines(graph_path / "edges" / "other", regular_edges,
                     {regular_edge_color}, 1.5f);
     this->drawLines(graph_path / "edges" / "icp", icp_edges, {icp_color}, 5.0f,
                     icp_edge_labels);
+    this->drawLines(graph_path / "edges" / "da3_essential", essential_edges,
+                    {essential_color}, 5.0f, essential_edge_labels);
 
     std::vector<Point3> icp_endpoint_positions;
     std::vector<std::string> icp_endpoint_labels;
@@ -526,12 +544,17 @@ public:
         static_cast<double>(pose_connectivity_factor_count));
     this->drawScalar((graph_path / "stats" / "icp_factors").string(),
                      static_cast<double>(icp_edges.size()));
+    this->drawScalar(
+        (graph_path / "stats" / "essential_matrix_factors").string(),
+        static_cast<double>(essential_edges.size()));
     LOG_EVERY_N(INFO, 30) << "Rerun local-window factor graph: pose_nodes="
                           << node_positions.size()
                           << ", active_factors=" << active_factor_count
                           << ", pose_connectivity_factors="
                           << pose_connectivity_factor_count
-                          << ", icp_factors=" << icp_edges.size();
+                          << ", icp_factors=" << icp_edges.size()
+                          << ", essential_matrix_factors="
+                          << essential_edges.size();
   }
 
   void visualizeLandmarks(std::filesystem::path base_frame,

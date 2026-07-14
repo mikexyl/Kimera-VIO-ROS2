@@ -67,6 +67,13 @@ def generate_launch_description():
             'Mono-depth scale alignment: relative_pose, landmarks, or none.'
         ),
     )
+    mono_depth_da3_essential_factors_enabled_arg = DeclareLaunchArgument(
+        'mono_depth.da3_essential_factors_enabled',
+        default_value='true',
+        description=(
+            'Add DA3 essential-matrix factors to the fixed-lag smoother.'
+        ),
+    )
     mono_depth_icp_only_da3_overlap_fusion_arg = DeclareLaunchArgument(
         'mono_depth.icp_only_da3_overlap_fusion',
         default_value='true',
@@ -135,6 +142,9 @@ def generate_launch_description():
             'mono_depth.scale_alignment_method': LaunchConfiguration(
                 'mono_depth.scale_alignment_method'
             ),
+            'mono_depth.da3_essential_factors_enabled': LaunchConfiguration(
+                'mono_depth.da3_essential_factors_enabled'
+            ),
             'mono_depth.icp_only_da3_overlap_fusion': LaunchConfiguration(
                 'mono_depth.icp_only_da3_overlap_fusion'
             ),
@@ -169,6 +179,7 @@ def generate_launch_description():
         mono_depth_min_distance_arg,
         mono_depth_min_confidence_arg,
         mono_depth_scale_alignment_method_arg,
+        mono_depth_da3_essential_factors_enabled_arg,
         mono_depth_icp_only_da3_overlap_fusion_arg,
         mono_depth_visualize_landmark_scale_alignment_arg,
         mono_depth_landmark_scale_flatness_radius_arg,

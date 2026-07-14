@@ -277,6 +277,13 @@ def generate_launch_description():
         default_value='none',
         description='Mono-depth scale alignment: none, relative_pose, or landmarks.'
     )
+    mono_depth_da3_essential_factors_enabled_arg = DeclareLaunchArgument(
+        'mono_depth.da3_essential_factors_enabled',
+        default_value='false',
+        description=(
+            'Add DA3 rotation and directed translation constraints to the smoother.'
+        ),
+    )
     mono_depth_icp_only_da3_overlap_fusion_arg = DeclareLaunchArgument(
         'mono_depth.icp_only_da3_overlap_fusion',
         default_value='false',
@@ -404,6 +411,7 @@ def generate_launch_description():
         'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
         'mono_depth.scale_alignment_method': LaunchConfiguration('mono_depth.scale_alignment_method'),
+        'mono_depth.da3_essential_factors_enabled': LaunchConfiguration('mono_depth.da3_essential_factors_enabled'),
         'mono_depth.icp_only_da3_overlap_fusion': LaunchConfiguration('mono_depth.icp_only_da3_overlap_fusion'),
         'mono_depth.visualize_landmark_scale_alignment': LaunchConfiguration('mono_depth.visualize_landmark_scale_alignment'),
         'mono_depth.landmark_scale_flatness_radius': LaunchConfiguration('mono_depth.landmark_scale_flatness_radius'),
@@ -555,6 +563,7 @@ def generate_launch_description():
         mono_depth_point_radius_arg,
         mono_depth_verbose_arg,
         mono_depth_scale_alignment_method_arg,
+        mono_depth_da3_essential_factors_enabled_arg,
         mono_depth_icp_only_da3_overlap_fusion_arg,
         mono_depth_visualize_landmark_scale_alignment_arg,
         mono_depth_landmark_scale_flatness_radius_arg,
