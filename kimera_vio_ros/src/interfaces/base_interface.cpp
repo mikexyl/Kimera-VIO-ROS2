@@ -65,6 +65,9 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
               "mono_depth.da3_keyframe_selection_method", "distance"));
   mono_depth_params.da3_keyframe_skip =
       node_->declare_parameter<int>("mono_depth.da3_keyframe_skip", 0);
+  mono_depth_params.da3_keyframe_covisibility_threshold =
+      node_->declare_parameter<double>(
+          "mono_depth.da3_keyframe_covisibility_threshold", 0.5);
   mono_depth_params.min_keyframe_distance_m = node_->declare_parameter<double>(
       "mono_depth.min_keyframe_distance_m", 1.0);
   mono_depth_params.point_stride =

@@ -183,12 +183,17 @@ def generate_launch_description():
     mono_depth_da3_keyframe_selection_method_arg = DeclareLaunchArgument(
         'mono_depth.da3_keyframe_selection_method',
         default_value='distance',
-        description='DA3 two-view endpoint selection: distance or fixed_skip.'
+        description='DA3 two-view endpoint selection: distance, fixed_skip, or covisibility.'
     )
     mono_depth_da3_keyframe_skip_arg = DeclareLaunchArgument(
         'mono_depth.da3_keyframe_skip',
         default_value='0',
         description='VIO keyframes held between DA3 endpoints in fixed_skip mode.'
+    )
+    mono_depth_da3_keyframe_covisibility_threshold_arg = DeclareLaunchArgument(
+        'mono_depth.da3_keyframe_covisibility_threshold',
+        default_value='0.5',
+        description='Run two-view DA3 when reference-track covisibility falls below this fraction.'
     )
     mono_depth_min_keyframe_distance_arg = DeclareLaunchArgument(
         'mono_depth.min_keyframe_distance_m',
@@ -398,6 +403,9 @@ def generate_launch_description():
         'mono_depth.da3_keyframe_skip': LaunchConfiguration(
             'mono_depth.da3_keyframe_skip'
         ),
+        'mono_depth.da3_keyframe_covisibility_threshold': LaunchConfiguration(
+            'mono_depth.da3_keyframe_covisibility_threshold'
+        ),
         'mono_depth.min_keyframe_distance_m': LaunchConfiguration('mono_depth.min_keyframe_distance_m'),
         'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
         'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
@@ -499,6 +507,7 @@ def generate_launch_description():
         mono_depth_mode_arg,
         mono_depth_da3_keyframe_selection_method_arg,
         mono_depth_da3_keyframe_skip_arg,
+        mono_depth_da3_keyframe_covisibility_threshold_arg,
         mono_depth_min_keyframe_distance_arg,
         mono_depth_point_stride_arg,
         mono_depth_max_points_per_keyframe_arg,
