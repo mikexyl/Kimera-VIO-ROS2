@@ -116,6 +116,12 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   mono_depth_params.da3_essential_factors_enabled =
       node_->declare_parameter<bool>("mono_depth.da3_essential_factors_enabled",
                                      false);
+  mono_depth_params.da3_baseline_ratio_factors_enabled =
+      node_->declare_parameter<bool>(
+          "mono_depth.da3_baseline_ratio_factors_enabled", false);
+  mono_depth_params.da3_baseline_ratio_log_sigma =
+      node_->declare_parameter<double>(
+          "mono_depth.da3_baseline_ratio_log_sigma", 0.25);
   mono_depth_params.icp_only_da3_overlap_fusion =
       node_->declare_parameter<bool>("mono_depth.icp_only_da3_overlap_fusion",
                                      false);

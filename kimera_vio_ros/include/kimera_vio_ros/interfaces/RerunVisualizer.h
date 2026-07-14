@@ -7,6 +7,7 @@
 #include <gtsam_points/factors/integrated_weighted_icp_factor.hpp>
 #include <kimera-vio/loopclosure/LoopClosureDetector-definitions.h>
 #include <kimera-vio/loopclosure/LoopClosureDetector.h>
+#include <kimera-vio/factors/CameraAwareBaselineRatioFactor.h>
 #include <kimera-vio/factors/CameraAwareEssentialMatrixFactor.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
 #include <opencv2/imgproc.hpp>
@@ -441,6 +442,13 @@ public:
            nullptr;
   }
 
+  static bool
+  isDa3BaselineRatioFactor(
+      const gtsam::NonlinearFactor::shared_ptr &factor) {
+    return std::dynamic_pointer_cast<CameraAwareBaselineRatioFactor>(factor) !=
+           nullptr;
+  }
+
   void drawLocalWindowFactorGraph(const VIO::VisualizerInput &input) {
     const gtsam::Values &state = input.backend_output_->state_;
     const gtsam::NonlinearFactorGraph &factor_graph =
@@ -469,8 +477,12 @@ public:
     std::vector<std::pair<Point3, Point3>> regular_edges;
     std::vector<std::pair<Point3, Point3>> icp_edges;
     std::vector<std::pair<Point3, Point3>> essential_edges;
+    std::vector<std::pair<Point3, Point3>> baseline_ratio_first_edges;
+    std::vector<std::pair<Point3, Point3>> baseline_ratio_second_edges;
     std::vector<std::string> icp_edge_labels;
     std::vector<std::string> essential_edge_labels;
+    std::vector<std::string> baseline_ratio_first_edge_labels;
+    std::vector<std::string> baseline_ratio_second_edge_labels;
     std::set<gtsam::Key> icp_endpoint_keys;
     std::size_t active_factor_count = 0u;
     std::size_t pose_connectivity_factor_count = 0u;
@@ -489,6 +501,23 @@ public:
       std::sort(pose_keys.begin(), pose_keys.end());
       pose_keys.erase(std::unique(pose_keys.begin(), pose_keys.end()),
                       pose_keys.end());
+      if (isDa3BaselineRatioFactor(factor)) {
+        if (pose_keys.size() != 3u) {
+          continue;
+        }
+        ++pose_connectivity_factor_count;
+        baseline_ratio_first_edges.emplace_back(
+            pose_positions.at(pose_keys[0]), pose_positions.at(pose_keys[1]));
+        baseline_ratio_second_edges.emplace_back(
+            pose_positions.at(pose_keys[1]), pose_positions.at(pose_keys[2]));
+        baseline_ratio_first_edge_labels.push_back(fmt::format(
+            "DA3 R {}-{}", gtsam::DefaultKeyFormatter(pose_keys[0]),
+            gtsam::DefaultKeyFormatter(pose_keys[1])));
+        baseline_ratio_second_edge_labels.push_back(fmt::format(
+            "DA3 R {}-{}", gtsam::DefaultKeyFormatter(pose_keys[1]),
+            gtsam::DefaultKeyFormatter(pose_keys[2])));
+        continue;
+      }
       if (pose_keys.size() != 2u) {
         continue;
       }
@@ -517,6 +546,10 @@ public:
     const Eigen::Vector4f regular_edge_color(105.0f, 155.0f, 230.0f, 130.0f);
     const Eigen::Vector4f icp_color(255.0f, 35.0f, 180.0f, 255.0f);
     const Eigen::Vector4f essential_color(30.0f, 220.0f, 255.0f, 255.0f);
+    const Eigen::Vector4f baseline_ratio_first_color(
+        255.0f, 165.0f, 35.0f, 255.0f);
+    const Eigen::Vector4f baseline_ratio_second_color(
+        150.0f, 255.0f, 55.0f, 255.0f);
     this->drawPoints(graph_path / "nodes", node_positions, node_color, {0.08f},
                      node_labels, false);
     this->drawLines(graph_path / "edges" / "other", regular_edges,
@@ -525,6 +558,12 @@ public:
                     icp_edge_labels);
     this->drawLines(graph_path / "edges" / "da3_essential", essential_edges,
                     {essential_color}, 5.0f, essential_edge_labels);
+    this->drawLines(graph_path / "edges" / "da3_baseline_ratio_first",
+                    baseline_ratio_first_edges, {baseline_ratio_first_color},
+                    5.0f, baseline_ratio_first_edge_labels);
+    this->drawLines(graph_path / "edges" / "da3_baseline_ratio_second",
+                    baseline_ratio_second_edges, {baseline_ratio_second_color},
+                    5.0f, baseline_ratio_second_edge_labels);
 
     std::vector<Point3> icp_endpoint_positions;
     std::vector<std::string> icp_endpoint_labels;
@@ -547,6 +586,8 @@ public:
     this->drawScalar(
         (graph_path / "stats" / "essential_matrix_factors").string(),
         static_cast<double>(essential_edges.size()));
+    this->drawScalar((graph_path / "stats" / "baseline_ratio_factors").string(),
+                     static_cast<double>(baseline_ratio_first_edges.size()));
     LOG_EVERY_N(INFO, 30) << "Rerun local-window factor graph: pose_nodes="
                           << node_positions.size()
                           << ", active_factors=" << active_factor_count
@@ -554,7 +595,9 @@ public:
                           << pose_connectivity_factor_count
                           << ", icp_factors=" << icp_edges.size()
                           << ", essential_matrix_factors="
-                          << essential_edges.size();
+                          << essential_edges.size()
+                          << ", baseline_ratio_factors="
+                          << baseline_ratio_first_edges.size();
   }
 
   void visualizeLandmarks(std::filesystem::path base_frame,

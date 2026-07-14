@@ -297,6 +297,18 @@ def generate_launch_description():
             'Add DA3 rotation and directed translation constraints to the smoother.'
         ),
     )
+    mono_depth_da3_baseline_ratio_factors_enabled_arg = DeclareLaunchArgument(
+        'mono_depth.da3_baseline_ratio_factors_enabled',
+        default_value='false',
+        description=(
+            'Add scale-free consecutive DA3 baseline-ratio constraints to the smoother.'
+        ),
+    )
+    mono_depth_da3_baseline_ratio_log_sigma_arg = DeclareLaunchArgument(
+        'mono_depth.da3_baseline_ratio_log_sigma',
+        default_value='0.25',
+        description='Standard deviation of the DA3 log baseline-ratio residual.',
+    )
     mono_depth_icp_only_da3_overlap_fusion_arg = DeclareLaunchArgument(
         'mono_depth.icp_only_da3_overlap_fusion',
         default_value='false',
@@ -407,6 +419,8 @@ def generate_launch_description():
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
         'mono_depth.scale_alignment_method': LaunchConfiguration('mono_depth.scale_alignment_method'),
         'mono_depth.da3_essential_factors_enabled': LaunchConfiguration('mono_depth.da3_essential_factors_enabled'),
+        'mono_depth.da3_baseline_ratio_factors_enabled': LaunchConfiguration('mono_depth.da3_baseline_ratio_factors_enabled'),
+        'mono_depth.da3_baseline_ratio_log_sigma': LaunchConfiguration('mono_depth.da3_baseline_ratio_log_sigma'),
         'mono_depth.icp_only_da3_overlap_fusion': LaunchConfiguration('mono_depth.icp_only_da3_overlap_fusion'),
         'mono_depth.visualize_landmark_scale_alignment': LaunchConfiguration('mono_depth.visualize_landmark_scale_alignment'),
         'mono_depth.landmark_scale_flatness_radius': LaunchConfiguration('mono_depth.landmark_scale_flatness_radius'),
@@ -506,6 +520,8 @@ def generate_launch_description():
         mono_depth_verbose_arg,
         mono_depth_scale_alignment_method_arg,
         mono_depth_da3_essential_factors_enabled_arg,
+        mono_depth_da3_baseline_ratio_factors_enabled_arg,
+        mono_depth_da3_baseline_ratio_log_sigma_arg,
         mono_depth_icp_only_da3_overlap_fusion_arg,
         mono_depth_visualize_landmark_scale_alignment_arg,
         mono_depth_landmark_scale_flatness_radius_arg,
