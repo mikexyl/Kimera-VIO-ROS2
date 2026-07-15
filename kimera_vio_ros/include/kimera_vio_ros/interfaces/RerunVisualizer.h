@@ -88,6 +88,7 @@ private:
 class RerunVisualizer : public Visualizer3D, aria::viz::VisualizerRerun {
 public:
   struct Params {
+    std::string application_id = "kimera_vio";
     std::string base_link_frame_id = "baselink";
     std::string odom_frame_id = "odom";
     std::string map_frame_id = "map";
@@ -98,18 +99,19 @@ public:
   };
 
   RerunVisualizer(const Params &params)
-      : RerunVisualizer(params.base_link_frame_id, params.odom_frame_id,
-                        params.map_frame_id, params.gt_csv_file,
+      : RerunVisualizer(params.application_id, params.base_link_frame_id,
+                        params.odom_frame_id, params.map_frame_id, params.gt_csv_file,
                         params.recording_id, params.result_dir,
                         params.rerun_host) {}
 
-  RerunVisualizer(std::string base_link_frame_id, std::string odom_frame_id,
-                  std::string map_frame_id, std::string gt_csv_file,
+  RerunVisualizer(std::string application_id, std::string base_link_frame_id,
+                  std::string odom_frame_id, std::string map_frame_id,
+                  std::string gt_csv_file,
                   std::optional<std::string> recording_id,
                   std::string result_dir, std::string rerun_host)
       : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
-            "kimera_vio", recording_id, rerun_host)),
+            application_id, recording_id, rerun_host)),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
         result_dir_(result_dir) {
     // draw the origin frame for visualization

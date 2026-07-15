@@ -4,6 +4,7 @@
   <arg name="use_sim_time" default="true"/>
   <arg name="robot_id" default="0"/>
   <arg name="robot_name" default="na"/>
+  <arg name="robot_namespace" default=""/>
 
   <!-- If true, SparkVio will log output of all modules to the
   'log_output_path' location. -->
@@ -13,10 +14,20 @@
 
 
   <!-- If true, SparkVio will enable the LoopClosureDetector module. -->
-  <arg name="use_lcd" default="false"/>
-  <arg name="bow_batch_size" default="5"/>
-  <arg name="bow_skip_num" default="1"/>
-  <arg name="publish_vlc_frames" default="true"/>
+  <arg name="use_lcd" default="0"/>
+  <arg name="multi_robot_bridge.enabled" default="false"/>
+  <arg name="multi_robot_bridge.descriptor_batch_size" default="5"/>
+  <arg name="multi_robot_bridge.descriptor_stride" default="1"/>
+  <arg name="multi_robot_bridge.verification_frame_batch_size" default="50"/>
+  <arg name="multi_robot_bridge.publish_verification_frames" default="true"/>
+  <arg name="multi_robot_bridge.flush_period_s" default="1.0"/>
+  <arg name="models.xfeat" default=""/>
+  <arg name="models.xfeat_interp_bilinear" default=""/>
+  <arg name="models.xfeat_interp_bicubic" default=""/>
+  <arg name="models.xfeat_interp_nearest" default=""/>
+  <arg name="models.lightglue_frontend" default=""/>
+  <arg name="models.lightglue_lcd" default=""/>
+  <arg name="models.jist" default=""/>
 
   <arg name="params_folder" default="$(find-pkg-share kimera_vio_ros)/param/$(var dataset_name)"/>
 
@@ -42,6 +53,7 @@
   <arg name="visualize"    default="false" />
   <arg name="use_rerun_visualizer" default="true"/>
   <arg name="rerun_host" default="rerun+http://127.0.0.1:9876/proxy"/>
+  <arg name="rerun_application_id" default="kimera_vio"/>
   <arg name="rerun_recording_id" default=""/>
   <arg name="rerun_result_dir" default=""/>
   <arg name="mono_depth.scale_alignment_method" default="none"/>
@@ -70,7 +82,7 @@
 
   <!-- Launch main node  -->
   <node name="kimera_vio_ros" pkg="kimera_vio_ros" exec="stereo_vio_node"
-    output="screen" namespace="kimera_vio_ros"
+    output="screen" namespace="$(var robot_namespace)/kimera_vio"
     args="--use_lcd=$(var use_lcd) \
         --flagfile=$(var params_folder)/flags/Mesher.flags \
         --flagfile=$(var params_folder)/flags/VioBackend.flags \
@@ -89,11 +101,22 @@
     <param name="use_lcd"           value="$(var use_lcd)"/>
     <param name="robot_id"          value="$(var robot_id)"/>
     <param name="robot_name"        value="$(var robot_name)"/>
-    <param name="bow_batch_size"    value="$(var bow_batch_size)"/>
-    <param name="bow_skip_num"      value="$(var bow_skip_num)"/>
-    <param name="publish_vlc_frames" value="$(var publish_vlc_frames)"/>
+    <param name="multi_robot_bridge.enabled" value="$(var multi_robot_bridge.enabled)"/>
+    <param name="multi_robot_bridge.descriptor_batch_size" value="$(var multi_robot_bridge.descriptor_batch_size)"/>
+    <param name="multi_robot_bridge.descriptor_stride" value="$(var multi_robot_bridge.descriptor_stride)"/>
+    <param name="multi_robot_bridge.verification_frame_batch_size" value="$(var multi_robot_bridge.verification_frame_batch_size)"/>
+    <param name="multi_robot_bridge.publish_verification_frames" value="$(var multi_robot_bridge.publish_verification_frames)"/>
+    <param name="multi_robot_bridge.flush_period_s" value="$(var multi_robot_bridge.flush_period_s)"/>
+    <param name="models.xfeat" value="$(var models.xfeat)"/>
+    <param name="models.xfeat_interp_bilinear" value="$(var models.xfeat_interp_bilinear)"/>
+    <param name="models.xfeat_interp_bicubic" value="$(var models.xfeat_interp_bicubic)"/>
+    <param name="models.xfeat_interp_nearest" value="$(var models.xfeat_interp_nearest)"/>
+    <param name="models.lightglue_frontend" value="$(var models.lightglue_frontend)"/>
+    <param name="models.lightglue_lcd" value="$(var models.lightglue_lcd)"/>
+    <param name="models.jist" value="$(var models.jist)"/>
     <param name="use_rerun_visualizer" value="$(var use_rerun_visualizer)"/>
     <param name="rerun_host" value="$(var rerun_host)"/>
+    <param name="rerun_application_id" value="$(var rerun_application_id)"/>
     <param name="rerun_recording_id" value="$(var rerun_recording_id)"/>
     <param name="rerun_result_dir" value="$(var rerun_result_dir)"/>
     <param name="mono_depth.scale_alignment_method" value="$(var mono_depth.scale_alignment_method)"/>
@@ -142,11 +165,7 @@
     <remap from="imu_bias"                to="imu_bias"/>
     <remap from="optimized_trajectory"    to="optimized_trajectory"/>
     <remap from="pose_graph"              to="pose_graph"/>
-    <remap from="pose_graph_incremental"  to="pose_graph_incremental"/>
     <remap from="optimized_odometry"      to="optimized_odometry"/>
-    <remap from="bow_query"               to="bow_query"/>
-    <remap from="vlc_frames"              to="vlc_frames"/>
-    <remap from="vlc_frame_query"         to="vlc_frame_query"/>
     <remap from="mesh"                    to="mesh"/>
     <remap from="frontend_stats"          to="frontend_stats"/>
     <remap from="debug_mesh_img"          to="debug_mesh_img"/>

@@ -71,7 +71,8 @@ add_library(${library_name} SHARED
   src/interfaces/base_interface.cpp
   src/interfaces/image_interface.cpp
   src/interfaces/imu_interface.cpp
-  src/interfaces/ros_loop_closure_visualizer.cpp
+  src/interfaces/local_loop_closure_publisher.cpp
+  src/interfaces/multi_robot_loop_closure_bridge.cpp
   src/interfaces/stereo_interface.cpp
   src/interfaces/stereo_vio_interface.cpp
   src/interfaces/mono_interface.cpp
@@ -121,10 +122,28 @@ install(DIRECTORY param
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
   # skips the linter checks for copyright
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)
+  # The inherited launch and visualization sources predate the ament Python
+  # and C++ format profiles. Retain syntax, XML, CMake and static checks.
+  set(ament_cmake_flake8_FOUND TRUE)
+  set(ament_cmake_uncrustify_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  ament_add_gtest(test_multi_robot_loop_closure_bridge
+    test/test_multi_robot_loop_closure_bridge.cpp)
+  if(TARGET test_multi_robot_loop_closure_bridge)
+    target_link_libraries(test_multi_robot_loop_closure_bridge
+      ${library_name} kimera_vio)
+    ament_target_dependencies(test_multi_robot_loop_closure_bridge
+      ${dependencies})
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/ros_test_logs")
+    set_tests_properties(test_multi_robot_loop_closure_bridge PROPERTIES
+      ENVIRONMENT
+        "ROS_LOG_DIR=${CMAKE_CURRENT_BINARY_DIR}/ros_test_logs;ROS_LOCALHOST_ONLY=1")
+  endif()
 endif()
 
 ament_export_dependencies(dependencies)

@@ -7,7 +7,8 @@
 #include "glog/logging.h"
 #include "kimera-vio/dataprovider/DataProviderInterface.h"
 #include "kimera-vio/pipeline/Pipeline.h"
-#include "kimera_vio_ros/interfaces/ros_loop_closure_visualizer.hpp"
+#include "kimera_vio_ros/interfaces/local_loop_closure_publisher.hpp"
+#include "kimera_vio_ros/interfaces/multi_robot_loop_closure_bridge.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
@@ -30,7 +31,8 @@ protected:
   rclcpp::Node::SharedPtr node_;
   VIO::VioParams::Ptr vio_params_;
   VIO::Pipeline::Ptr vio_pipeline_;
-  std::unique_ptr<RosLoopClosureVisualizer> ros_lcd_visualizer_;
+  std::unique_ptr<LocalLoopClosurePublisher> local_lcd_publisher_;
+  std::unique_ptr<MultiRobotLoopClosureBridge> multi_robot_bridge_;
 
   std::string base_link_frame_id_;
   std::string odom_frame_id_;

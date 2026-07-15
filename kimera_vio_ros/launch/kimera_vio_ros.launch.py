@@ -43,6 +43,11 @@ def generate_launch_description():
         default_value='na',
         description='Robot name, usually supplied by an enclosing namespace.'
     )
+    robot_namespace_arg = DeclareLaunchArgument(
+        'robot_namespace',
+        default_value='',
+        description='Optional parent namespace for the kimera_vio node.'
+    )
     log_output_arg = DeclareLaunchArgument(
         'log_output',
         default_value='false',
@@ -76,6 +81,42 @@ def generate_launch_description():
         default_value='true',
         description='Publish local VLC frames for distributed loop closure.'
     )
+    bridge_enabled_arg = DeclareLaunchArgument(
+        'multi_robot_bridge.enabled', default_value='false',
+        description='Enable the Kimera multi-robot transport bridge.'
+    )
+    descriptor_batch_size_arg = DeclareLaunchArgument(
+        'multi_robot_bridge.descriptor_batch_size', default_value='5'
+    )
+    descriptor_stride_arg = DeclareLaunchArgument(
+        'multi_robot_bridge.descriptor_stride', default_value='1'
+    )
+    verification_batch_size_arg = DeclareLaunchArgument(
+        'multi_robot_bridge.verification_frame_batch_size', default_value='50'
+    )
+    bridge_publish_frames_arg = DeclareLaunchArgument(
+        'multi_robot_bridge.publish_verification_frames', default_value='true'
+    )
+    bridge_flush_period_arg = DeclareLaunchArgument(
+        'multi_robot_bridge.flush_period_s', default_value='1.0'
+    )
+    model_xfeat_arg = DeclareLaunchArgument('models.xfeat', default_value='')
+    model_xfeat_bilinear_arg = DeclareLaunchArgument(
+        'models.xfeat_interp_bilinear', default_value=''
+    )
+    model_xfeat_bicubic_arg = DeclareLaunchArgument(
+        'models.xfeat_interp_bicubic', default_value=''
+    )
+    model_xfeat_nearest_arg = DeclareLaunchArgument(
+        'models.xfeat_interp_nearest', default_value=''
+    )
+    model_lightglue_frontend_arg = DeclareLaunchArgument(
+        'models.lightglue_frontend', default_value=''
+    )
+    model_lightglue_lcd_arg = DeclareLaunchArgument(
+        'models.lightglue_lcd', default_value=''
+    )
+    model_jist_arg = DeclareLaunchArgument('models.jist', default_value='')
     params_folder_arg = DeclareLaunchArgument(
         'params_folder',
         default_value=PathJoinSubstitution([
@@ -159,6 +200,11 @@ def generate_launch_description():
         'rerun_recording_id',
         default_value='',
         description='Optional Rerun recording id.'
+    )
+    rerun_application_id_arg = DeclareLaunchArgument(
+        'rerun_application_id',
+        default_value='kimera_vio',
+        description='Rerun application id.'
     )
     rerun_result_dir_arg = DeclareLaunchArgument(
         'rerun_result_dir',
@@ -381,6 +427,19 @@ def generate_launch_description():
         'bow_batch_size': LaunchConfiguration('bow_batch_size'),
         'bow_skip_num': LaunchConfiguration('bow_skip_num'),
         'publish_vlc_frames': LaunchConfiguration('publish_vlc_frames'),
+        'multi_robot_bridge.enabled': LaunchConfiguration('multi_robot_bridge.enabled'),
+        'multi_robot_bridge.descriptor_batch_size': LaunchConfiguration('multi_robot_bridge.descriptor_batch_size'),
+        'multi_robot_bridge.descriptor_stride': LaunchConfiguration('multi_robot_bridge.descriptor_stride'),
+        'multi_robot_bridge.verification_frame_batch_size': LaunchConfiguration('multi_robot_bridge.verification_frame_batch_size'),
+        'multi_robot_bridge.publish_verification_frames': LaunchConfiguration('multi_robot_bridge.publish_verification_frames'),
+        'multi_robot_bridge.flush_period_s': LaunchConfiguration('multi_robot_bridge.flush_period_s'),
+        'models.xfeat': LaunchConfiguration('models.xfeat'),
+        'models.xfeat_interp_bilinear': LaunchConfiguration('models.xfeat_interp_bilinear'),
+        'models.xfeat_interp_bicubic': LaunchConfiguration('models.xfeat_interp_bicubic'),
+        'models.xfeat_interp_nearest': LaunchConfiguration('models.xfeat_interp_nearest'),
+        'models.lightglue_frontend': LaunchConfiguration('models.lightglue_frontend'),
+        'models.lightglue_lcd': LaunchConfiguration('models.lightglue_lcd'),
+        'models.jist': LaunchConfiguration('models.jist'),
         'frame_id.base_link': LaunchConfiguration('frame_id.base_link'),
         'frame_id.odom': LaunchConfiguration('frame_id.odom'),
         'frame_id.map': LaunchConfiguration('frame_id.map'),
@@ -392,6 +451,7 @@ def generate_launch_description():
         'mono_ransac_threshold': 30,
         'use_rerun_visualizer': LaunchConfiguration('use_rerun_visualizer'),
         'rerun_host': LaunchConfiguration('rerun_host'),
+        'rerun_application_id': LaunchConfiguration('rerun_application_id'),
         'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
         'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
         'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
@@ -450,11 +510,7 @@ def generate_launch_description():
         ('imu_bias', 'imu_bias'),
         ('optimized_trajectory', 'optimized_trajectory'),
         ('pose_graph', 'pose_graph'),
-        ('pose_graph_incremental', 'pose_graph_incremental'),
         ('optimized_odometry', 'optimized_odometry'),
-        ('bow_query', 'bow_query'),
-        ('vlc_frames', 'vlc_frames'),
-        ('vlc_frame_query', 'vlc_frame_query'),
         ('mesh', 'mesh'),
         ('frontend_stats', 'frontend_stats'),
         ('debug_mesh_img', 'debug_mesh_img'),
@@ -464,7 +520,10 @@ def generate_launch_description():
     kimera_vio_node = Node(
         package='kimera_vio_ros',
         executable='stereo_vio_node',
-        namespace='kimera_vio_ros',
+        namespace=PathJoinSubstitution([
+            LaunchConfiguration('robot_namespace'),
+            'kimera_vio',
+        ]),
         name='kimera_vio_ros',
         output='screen',
         arguments=node_arguments,
@@ -479,12 +538,26 @@ def generate_launch_description():
         use_sim_time_arg,
         robot_id_arg,
         robot_name_arg,
+        robot_namespace_arg,
         log_output_arg,
         log_output_path_arg,
         use_lcd_arg,
         bow_batch_size_arg,
         bow_skip_num_arg,
         publish_vlc_frames_arg,
+        bridge_enabled_arg,
+        descriptor_batch_size_arg,
+        descriptor_stride_arg,
+        verification_batch_size_arg,
+        bridge_publish_frames_arg,
+        bridge_flush_period_arg,
+        model_xfeat_arg,
+        model_xfeat_bilinear_arg,
+        model_xfeat_bicubic_arg,
+        model_xfeat_nearest_arg,
+        model_lightglue_frontend_arg,
+        model_lightglue_lcd_arg,
+        model_jist_arg,
         params_folder_arg,
         topic_left_image_arg,
         topic_right_image_arg,
@@ -500,6 +573,7 @@ def generate_launch_description():
         visualize_arg,
         use_rerun_visualizer_arg,
         rerun_host_arg,
+        rerun_application_id_arg,
         rerun_recording_id_arg,
         rerun_result_dir_arg,
         mono_depth_enabled_arg,

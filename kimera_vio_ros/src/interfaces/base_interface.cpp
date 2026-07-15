@@ -1,4 +1,5 @@
 #include <chrono>
+#include <filesystem>
 #include <optional>
 #include <string>
 
@@ -37,11 +38,50 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   CHECK(!params_folder_.empty());
   vio_params_ = std::make_shared<VIO::VioParams>(params_folder_);
 
+  // Model artifacts are deployment inputs. Non-empty ROS parameters override
+  // the selected YAML profile; active pipelines validate their final paths.
+  auto override_path = [this](const std::string &parameter,
+                              std::string *target) {
+    const auto value = node_->declare_parameter<std::string>(parameter, "");
+    if (!value.empty()) {
+      CHECK(std::filesystem::is_regular_file(value))
+          << "Model parameter '" << parameter
+          << "' does not point to a readable file: " << value;
+      *target = value;
+    }
+  };
+  override_path("models.xfeat",
+                &vio_params_->frontend_params_.feature_detector_params_.xfeat_path_);
+  override_path(
+      "models.xfeat_interp_bilinear",
+      &vio_params_->frontend_params_.feature_detector_params_.interp_bilinear_path_);
+  override_path(
+      "models.xfeat_interp_bicubic",
+      &vio_params_->frontend_params_.feature_detector_params_.interp_bicubic_path_);
+  override_path(
+      "models.xfeat_interp_nearest",
+      &vio_params_->frontend_params_.feature_detector_params_.interp_nearest_path_);
+  override_path("models.lightglue_frontend",
+                &vio_params_->frontend_params_.tracker_params_.lighterglue_model_path_);
+  override_path("models.lightglue_lcd", &vio_params_->lcd_params_.lcd_lg_model_path_);
+  const auto jist_model_path =
+      node_->declare_parameter<std::string>("models.jist", "");
+  if (!jist_model_path.empty()) {
+    CHECK(vio_params_->lcd_params_.vpr_model_type_ ==
+          VIO::VprModelType::kJist)
+        << "models.jist was supplied for a non-JIST VPR profile";
+    CHECK(std::filesystem::is_regular_file(jist_model_path))
+        << "Model parameter 'models.jist' does not point to a readable file: "
+        << jist_model_path;
+    vio_params_->lcd_params_.vpr_model_path_ = jist_model_path;
+  }
   // Determine if this is a mono or stereo setup based on number of cameras
   bool is_mono = vio_params_->frontend_type_ == VIO::FrontendType::kMonoImu;
 
   const auto rerun_recording_id_param =
       node_->declare_parameter<std::string>("rerun_recording_id", "");
+  const auto rerun_application_id = node_->declare_parameter<std::string>(
+      "rerun_application_id", "kimera_vio");
   std::optional<std::string> rerun_recording_id = std::nullopt;
   if (!rerun_recording_id_param.empty()) {
     rerun_recording_id = rerun_recording_id_param;
@@ -157,7 +197,8 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
   if (use_rerun_visualizer) {
     rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
-        VIO::RerunVisualizer::Params{.base_link_frame_id = base_link_frame_id_,
+        VIO::RerunVisualizer::Params{.application_id = rerun_application_id,
+                                     .base_link_frame_id = base_link_frame_id_,
                                      .odom_frame_id = odom_frame_id_,
                                      .map_frame_id = map_frame_id_,
                                      .recording_id = rerun_recording_id,
@@ -178,10 +219,17 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   }
 
   if (FLAGS_use_lcd != 0) {
-    ros_lcd_visualizer_ = std::make_unique<RosLoopClosureVisualizer>(node_);
+    CHECK(std::filesystem::is_regular_file(
+        vio_params_->lcd_params_.vpr_model_path_))
+        << "The configured VPR model does not point to a readable file: "
+        << vio_params_->lcd_params_.vpr_model_path_;
+    local_lcd_publisher_ = std::make_unique<LocalLoopClosurePublisher>(node_);
+    multi_robot_bridge_ =
+        std::make_unique<MultiRobotLoopClosureBridge>(node_);
     vio_pipeline_->registerLcdOutputCallback(
         [this](const VIO::LcdOutput::Ptr &msg) {
-          CHECK_NOTNULL(ros_lcd_visualizer_.get())->publishLcdOutput(msg);
+          CHECK_NOTNULL(local_lcd_publisher_.get())->publishLcdOutput(msg);
+          CHECK_NOTNULL(multi_robot_bridge_.get())->publishLcdOutput(msg);
         });
   }
 }
@@ -190,6 +238,9 @@ BaseInterface::~BaseInterface() {
   vio_pipeline_->shutdown();
   if (vio_params_->parallel_run_) {
     handle_pipeline_.get();
+  }
+  if (multi_robot_bridge_) {
+    multi_robot_bridge_->flush();
   }
 }
 
