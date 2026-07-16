@@ -64,6 +64,16 @@ def generate_launch_description():
         'dense_mapping.geometry_filter_enabled',
         default_value='true',
     )
+    submap_metric_scale_method_arg = DeclareLaunchArgument(
+        'dense_mapping.submap_metric_scale_method',
+        default_value='odometry',
+        description='Submap metric scaling: none or odometry.',
+    )
+    submap_anchor_method_arg = DeclareLaunchArgument(
+        'dense_mapping.submap_anchor_method',
+        default_value='odometry',
+        description='Submap anchoring: da3 or odometry.',
+    )
     geometry_filter_pose_source_arg = DeclareLaunchArgument(
         'dense_mapping.geometry_filter_pose_source',
         default_value='da3',
@@ -253,6 +263,12 @@ def generate_launch_description():
             'max_runs_per_submap': '5',
             'min_depth_m': '0.1',
             'max_depth_m': '100.0',
+            'submap.metric_scale_method': LaunchConfiguration(
+                'dense_mapping.submap_metric_scale_method'
+            ),
+            'submap.anchor_method': LaunchConfiguration(
+                'dense_mapping.submap_anchor_method'
+            ),
             'geometry_filter.enabled': LaunchConfiguration(
                 'dense_mapping.geometry_filter_enabled'
             ),
@@ -289,6 +305,8 @@ def generate_launch_description():
         rerun_application_id_arg,
         rerun_recording_id_arg,
         geometry_filter_enabled_arg,
+        submap_metric_scale_method_arg,
+        submap_anchor_method_arg,
         geometry_filter_pose_source_arg,
         geometry_filter_max_error_arg,
         geometry_filter_visualization_max_error_arg,
