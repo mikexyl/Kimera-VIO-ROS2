@@ -30,7 +30,7 @@ rankTolerance: 1e-4
 #   * if the landmark is triangulated at distance larger than this,
 #   * result is flagged as degenerate.
 #   */
-landmarkDistanceThreshold: 200
+landmarkDistanceThreshold: 100
 
 # DynamicOutlierRejection:
 #  /**
@@ -95,11 +95,7 @@ min_num_obs_per_landmark_to_keep: 0
 max_lmk_reproj_error_to_keep: 1000000
 
 # Mono-depth VGICP factors.
-vgicp_factors_enabled: 1
-# Diagnostic mode: keep ICP out of the VIO smoother and optimize a separate
-# pose-only graph initialized from the VIO poses.
-vgicp_icp_only_enabled: 0
-vgicp_icp_only_max_iterations: 30
+vgicp_factors_enabled: 0
 vgicp_use_weighted_icp_factor: 1
 vgicp_min_shared_tracks: 30
 vgicp_max_edges_per_keyframe: 2
@@ -109,4 +105,4 @@ vgicp_covariance_neighbors: 200
 vgicp_num_threads: 4
 vgicp_min_points_per_keyframe: 300
 vgicp_max_correspondence_distance: 5.0
-vgicp_factor_weight: 1
+vgicp_factor_weight: 0.1

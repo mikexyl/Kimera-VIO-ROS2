@@ -57,8 +57,6 @@
   <arg name="rerun_recording_id" default=""/>
   <arg name="rerun_result_dir" default=""/>
   <arg name="mono_depth.scale_alignment_method" default="none"/>
-  <arg name="mono_depth.icp_only_da3_overlap_fusion" default="false"/>
-  <arg name="mono_depth.visualize_landmark_scale_alignment" default="false"/>
   <arg name="mono_depth.landmark_scale_flatness_radius" default="4"/>
   <arg name="mono_depth.landmark_scale_max_relative_depth_variation" default="0.15"/>
   <arg name="mono_depth.da3_keyframe_selection_method" default="distance"/>
@@ -72,12 +70,8 @@
   <arg name="mono_depth.depth_weight_range_ref" default="0.0"/>
   <arg name="mono_depth.depth_weight_range_power" default="2.0"/>
   <arg name="mono_depth.depth_weight_range_min" default="0.05"/>
-  <arg name="mono_depth.visualize_weights" default="false"/>
   <arg name="mono_depth.min_confidence" default="1.1"/>
   <arg name="mono_depth.visualize_confidence" default="false"/>
-  <arg name="mono_depth.visualization_point_stride" default="4"/>
-  <arg name="mono_depth.visualization_max_points_per_keyframe" default="5000"/>
-  <arg name="dense_map.voxel_resolution" default="0.3"/>
   <!-- <arg name="rectified"    default="true" /> -->
 
   <!-- Launch main node  -->
@@ -120,8 +114,6 @@
     <param name="rerun_recording_id" value="$(var rerun_recording_id)"/>
     <param name="rerun_result_dir" value="$(var rerun_result_dir)"/>
     <param name="mono_depth.scale_alignment_method" value="$(var mono_depth.scale_alignment_method)"/>
-    <param name="mono_depth.icp_only_da3_overlap_fusion" value="$(var mono_depth.icp_only_da3_overlap_fusion)"/>
-    <param name="mono_depth.visualize_landmark_scale_alignment" value="$(var mono_depth.visualize_landmark_scale_alignment)"/>
     <param name="mono_depth.landmark_scale_flatness_radius" value="$(var mono_depth.landmark_scale_flatness_radius)"/>
     <param name="mono_depth.landmark_scale_max_relative_depth_variation" value="$(var mono_depth.landmark_scale_max_relative_depth_variation)"/>
     <param name="mono_depth.da3_keyframe_selection_method" value="$(var mono_depth.da3_keyframe_selection_method)"/>
@@ -135,13 +127,8 @@
     <param name="mono_depth.depth_weight_range_ref" value="$(var mono_depth.depth_weight_range_ref)"/>
     <param name="mono_depth.depth_weight_range_power" value="$(var mono_depth.depth_weight_range_power)"/>
     <param name="mono_depth.depth_weight_range_min" value="$(var mono_depth.depth_weight_range_min)"/>
-    <param name="mono_depth.visualize_weights" value="$(var mono_depth.visualize_weights)"/>
     <param name="mono_depth.min_confidence" value="$(var mono_depth.min_confidence)"/>
     <param name="mono_depth.visualize_confidence" value="$(var mono_depth.visualize_confidence)"/>
-    <param name="mono_depth.visualization_point_stride" value="$(var mono_depth.visualization_point_stride)"/>
-    <param name="mono_depth.visualization_max_points_per_keyframe" value="$(var mono_depth.visualization_max_points_per_keyframe)"/>
-    <param name="dense_map.voxel_resolution" value="$(var dense_map.voxel_resolution)"/>
-
     <!-- Frame IDs for Odometry -->
     <param name="frame_id">
         <param name="base_link" value="$(var frame_id.base_link)"/>

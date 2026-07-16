@@ -1,8 +1,11 @@
+from datetime import datetime
+
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     SetEnvironmentVariable,
+    TimerAction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -10,10 +13,14 @@ from launch_ros.substitutions import FindPackageShare
 
 
 DA3_TWO_VIEW_ENGINE = (
-    '/home/mikexyl/workspaces/xfeat_cpp_ws/xfeat-cpp/onnx_model/'
-    'mono_depth/depth_anything_v3/'
-    'DA3-LARGE-1.1_multiview_v2_350x504_fp16.engine'
+    '/home/mikexyl/workspaces/sb_slam_ros2_ws/src/xfeat-cpp/onnx_model/'
+    'DA3METRIC-LARGE_280x504_fp16.engine'
 )
+
+
+def _timestamped_recording_id():
+    timestamp = datetime.now().astimezone().strftime('%Y%m%d_%H%M%S_%z')
+    return f'graco-aerial-05-da3-two-view-{timestamp}'
 
 
 def generate_launch_description():
@@ -45,6 +52,14 @@ def generate_launch_description():
         default_value='rerun+http://127.0.0.1:9876/proxy',
         description='Rerun endpoint.',
     )
+    rerun_application_id_arg = DeclareLaunchArgument(
+        'rerun_application_id',
+        default_value='graco_aerial_05_dense_mapping',
+    )
+    rerun_recording_id_arg = DeclareLaunchArgument(
+        'rerun_recording_id',
+        default_value=_timestamped_recording_id(),
+    )
     mono_depth_engine_arg = DeclareLaunchArgument(
         'mono_depth.engine_path',
         default_value=DA3_TWO_VIEW_ENGINE,
@@ -52,7 +67,7 @@ def generate_launch_description():
     )
     mono_depth_da3_keyframe_selection_method_arg = DeclareLaunchArgument(
         'mono_depth.da3_keyframe_selection_method',
-        default_value='covisibility',
+        default_value='distance',
         description='DA3 two-view endpoint selection: distance, fixed_skip, or covisibility.',
     )
     mono_depth_da3_keyframe_skip_arg = DeclareLaunchArgument(
@@ -67,12 +82,12 @@ def generate_launch_description():
     )
     mono_depth_min_distance_arg = DeclareLaunchArgument(
         'mono_depth.min_keyframe_distance_m',
-        default_value='1.0',
+        default_value='10.0',
         description='Minimum odometry camera-center displacement for DA3.',
     )
     mono_depth_min_confidence_arg = DeclareLaunchArgument(
         'mono_depth.min_confidence',
-        default_value='1.1',
+        default_value='1.2',
         description='Minimum DA3 multi-view confidence.',
     )
     mono_depth_scale_alignment_method_arg = DeclareLaunchArgument(
@@ -84,14 +99,14 @@ def generate_launch_description():
     )
     mono_depth_da3_essential_factors_enabled_arg = DeclareLaunchArgument(
         'mono_depth.da3_essential_factors_enabled',
-        default_value='true',
+        default_value='false',
         description=(
             'Add DA3 essential-matrix factors to the fixed-lag smoother.'
         ),
     )
     mono_depth_da3_baseline_ratio_factors_enabled_arg = DeclareLaunchArgument(
         'mono_depth.da3_baseline_ratio_factors_enabled',
-        default_value='true',
+        default_value='false',
         description=(
             'Add scale-free consecutive DA3 baseline-ratio factors to the smoother.'
         ),
@@ -100,18 +115,6 @@ def generate_launch_description():
         'mono_depth.da3_baseline_ratio_log_sigma',
         default_value='0.25',
         description='Standard deviation of the DA3 log baseline-ratio residual.',
-    )
-    mono_depth_icp_only_da3_overlap_fusion_arg = DeclareLaunchArgument(
-        'mono_depth.icp_only_da3_overlap_fusion',
-        default_value='true',
-        description=(
-            'Use DA3 shared-view scale chaining instead of ICP in the isolated path.'
-        ),
-    )
-    mono_depth_visualize_landmark_scale_alignment_arg = DeclareLaunchArgument(
-        'mono_depth.visualize_landmark_scale_alignment',
-        default_value='true',
-        description='Log landmark scale weights and rejection reasons to Rerun.',
     )
     mono_depth_landmark_scale_flatness_radius_arg = DeclareLaunchArgument(
         'mono_depth.landmark_scale_flatness_radius',
@@ -139,6 +142,12 @@ def generate_launch_description():
         ),
         launch_arguments={
             'dataset_name': 'GrAcoMonoXfeat',
+            'robot_name': 'a5',
+            'robot_namespace': 'a5',
+            'frame_id.base_link': 'a5/base_link',
+            'frame_id.odom': 'a5/odom',
+            'frame_id.map': 'a5/map',
+            'frame_id.world': 'world',
             'topic.image': '/camera_left/image_raw',
             'topic.imu.data': '/gnss/imu',
             'topic.camera.info': '/camera_left/camera_info',
@@ -146,15 +155,21 @@ def generate_launch_description():
             'use_sim_time': 'true',
             'start_zenoh_router': LaunchConfiguration('start_zenoh_router'),
             'rerun_host': LaunchConfiguration('rerun_host'),
-            'rerun_recording_id': 'graco-aerial-05-da3-two-view',
+            'rerun_application_id': LaunchConfiguration(
+                'rerun_application_id'
+            ),
+            'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
             'rosbag_play': 'true',
             'rosbag_path': LaunchConfiguration('rosbag_path'),
+            'rosbag_source_image_topic': '/camera_left/image_raw',
+            'rosbag_source_imu_topic': '/gnss/imu',
             'rosbag_play_delay': '4.0',
             'rosbag_rate': LaunchConfiguration('rosbag_rate'),
             'rosbag_play_duration': LaunchConfiguration(
                 'rosbag_play_duration'
             ),
             'mono_depth.enabled': 'true',
+            'dense_mapping.publisher_enabled': 'true',
             'mono_depth.engine_path': LaunchConfiguration(
                 'mono_depth.engine_path'
             ),
@@ -191,14 +206,6 @@ def generate_launch_description():
             'mono_depth.da3_baseline_ratio_log_sigma': LaunchConfiguration(
                 'mono_depth.da3_baseline_ratio_log_sigma'
             ),
-            'mono_depth.icp_only_da3_overlap_fusion': LaunchConfiguration(
-                'mono_depth.icp_only_da3_overlap_fusion'
-            ),
-            'mono_depth.visualize_landmark_scale_alignment': (
-                LaunchConfiguration(
-                    'mono_depth.visualize_landmark_scale_alignment'
-                )
-            ),
             'mono_depth.landmark_scale_flatness_radius': LaunchConfiguration(
                 'mono_depth.landmark_scale_flatness_radius'
             ),
@@ -208,9 +215,36 @@ def generate_launch_description():
                 )
             ),
             'mono_depth.depth_weight_range_ref': '20.0',
-            'mono_depth.visualize_weights': 'false',
-            'dense_map.enabled': 'true',
-            'dense_map.voxel_resolution': '0.5',
+        }.items(),
+    )
+
+    dense_mapping_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('dense_mapping'),
+                'launch',
+                'dense_mapping.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'robot': 'a5',
+            'frame_id.map': 'a5/map',
+            'frame_id.odometry': 'world',
+            'point_stride': '4',
+            'max_points_per_view': '100000',
+            'max_points_per_submap': '200000',
+            'max_runs_per_submap': '5',
+            'min_depth_m': '0.1',
+            'max_depth_m': '100.0',
+            'rerun.enabled': 'true',
+            'rerun.application_id': LaunchConfiguration(
+                'rerun_application_id'
+            ),
+            'rerun.recording_id': LaunchConfiguration('rerun_recording_id'),
+            'rerun.host': LaunchConfiguration('rerun_host'),
+            'rerun.entity_prefix': 'a5/dense_mapping',
+            'rerun.point_radius': '1.0',
+            'sparse_global_ba.enabled': 'false',
         }.items(),
     )
 
@@ -221,6 +255,8 @@ def generate_launch_description():
         rosbag_rate_arg,
         start_zenoh_router_arg,
         rerun_host_arg,
+        rerun_application_id_arg,
+        rerun_recording_id_arg,
         mono_depth_engine_arg,
         mono_depth_da3_keyframe_selection_method_arg,
         mono_depth_da3_keyframe_skip_arg,
@@ -231,9 +267,8 @@ def generate_launch_description():
         mono_depth_da3_essential_factors_enabled_arg,
         mono_depth_da3_baseline_ratio_factors_enabled_arg,
         mono_depth_da3_baseline_ratio_log_sigma_arg,
-        mono_depth_icp_only_da3_overlap_fusion_arg,
-        mono_depth_visualize_landmark_scale_alignment_arg,
         mono_depth_landmark_scale_flatness_radius_arg,
         mono_depth_landmark_scale_max_relative_depth_variation_arg,
-        mono_launch,
+        dense_mapping_launch,
+        TimerAction(period=1.0, actions=[mono_launch]),
     ])

@@ -5,21 +5,34 @@ namespace kimera_vio_ros {
 namespace interfaces {
 
 BackendInterface::BackendInterface(rclcpp::Node::SharedPtr &node)
-    : BaseInterface(node), backend_output_queue_("Backend output") {
+    : BaseInterface(node) {
   rclcpp::QoS qos(rclcpp::KeepLast(10));
   odometry_pub_ = node_->create_publisher<Odometry>("odometry", qos);
   pointcloud_pub_ =
       node_->create_publisher<PointCloud2>("time_horizon_pointcloud", qos);
+  if (node_->declare_parameter<bool>("dense_mapping.publisher_enabled", false)) {
+    CHECK(!vio_params_->camera_params_.empty());
+    dense_mapping_publisher_ = std::make_unique<DenseMappingPublisher>(
+        node_, vio_params_->camera_params_.front());
+  }
+  vio_pipeline_->registerBackendOutputCallback(
+      [this](const VIO::BackendOutput::Ptr &output) {
+        publishBackendOutput(output);
+      });
 }
 
-BackendInterface::~BackendInterface() { backend_output_queue_.shutdown(); }
+BackendInterface::~BackendInterface() = default;
 
 void BackendInterface::publishBackendOutput(
     const VIO::BackendOutput::Ptr &output) {
   CHECK(output);
   publishTf(output);
+  const Odometry odometry = makeOdometry(output);
   if (odometry_pub_->get_subscription_count() > 0) {
-    publishState(output);
+    odometry_pub_->publish(odometry);
+  }
+  if (dense_mapping_publisher_) {
+    dense_mapping_publisher_->publish(output, odometry);
   }
   // if (imu_bias_pub_.getNumSubscribers() > 0) {
   //   publishImuBias(output);
@@ -29,7 +42,7 @@ void BackendInterface::publishBackendOutput(
   }
 }
 
-void BackendInterface::publishState(
+Odometry BackendInterface::makeOdometry(
     const VIO::BackendOutput::Ptr &output) const {
   CHECK(output);
   // Get latest estimates for odometry.
@@ -100,8 +113,7 @@ void BackendInterface::publishState(
                       j] = vel_cov_body(i, j);
     }
   }
-  // Publish message
-  odometry_pub_->publish(odometry_msg);
+  return odometry_msg;
 }
 
 void BackendInterface::publishTf(const VIO::BackendOutput::Ptr &output) {

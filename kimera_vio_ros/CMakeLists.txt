@@ -20,6 +20,7 @@ find_package(Boost REQUIRED COMPONENTS
 find_package(Gflags REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(dense_mapping REQUIRED)
 find_package(geometry_msgs REQUIRED)
 # find_package(glog REQUIRED)
 find_package(kimera_common REQUIRED)
@@ -69,6 +70,7 @@ add_library(${library_name} SHARED
   src/components/mono_vio.cpp
   src/interfaces/backend_interface.cpp
   src/interfaces/base_interface.cpp
+  src/interfaces/dense_mapping_publisher.cpp
   src/interfaces/image_interface.cpp
   src/interfaces/imu_interface.cpp
   src/interfaces/local_loop_closure_publisher.cpp
@@ -86,7 +88,12 @@ rclcpp_components_register_nodes(${library_name}
   "kimera_vio_ros::components::StereoVio"
   "kimera_vio_ros::components::MonoVio")
 target_link_libraries(${library_name}
-  kimera_vio aria_common aria_viz xfeat-cpp::xfeat-cpp ${SYSTEM_CURL_LIBRARY})
+  kimera_vio
+  aria_common
+  aria_viz
+  dense_mapping::dense_mapping__rosidl_typesupport_cpp
+  xfeat-cpp::xfeat-cpp
+  ${SYSTEM_CURL_LIBRARY})
 
 add_executable(stereo_vio_node
   src/stereo_vio_node.cpp)

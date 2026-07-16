@@ -3,6 +3,7 @@
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
+#include "kimera_vio_ros/interfaces/dense_mapping_publisher.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
@@ -23,20 +24,11 @@ public:
     rclcpp::Node::SharedPtr & node);
   virtual ~BackendInterface();
 
-public:
-  inline void callbackBackendOutput(const VIO::BackendOutput::Ptr & output)
-  {
-    backend_output_queue_.push(output);
-  }
-
 protected:
   void publishBackendOutput(const VIO::BackendOutput::Ptr & output);
 
-protected:
-  VIO::ThreadsafeQueue<VIO::BackendOutput::Ptr> backend_output_queue_;
-
 private:
-  void publishState(const VIO::BackendOutput::Ptr & output) const;
+  Odometry makeOdometry(const VIO::BackendOutput::Ptr & output) const;
   void publishTf(const VIO::BackendOutput::Ptr & output);
   void publishTimeHorizonPointCloud(const VIO::BackendOutput::Ptr & output) const;
   // void publishImuBias(const VIO::BackendOutput::Ptr& output) const;
@@ -44,6 +36,7 @@ private:
 private:
   rclcpp::Publisher<Odometry>::SharedPtr odometry_pub_;
   rclcpp::Publisher<PointCloud2>::SharedPtr pointcloud_pub_;
+  std::unique_ptr<DenseMappingPublisher> dense_mapping_publisher_;
 
 };
 

@@ -5,7 +5,6 @@
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
-#include <kimera-vio/common/DenseMapTypes.h>
 #include <kimera-vio/common/MonoDepthTypes.h>
 #include <kimera-vio/pipeline/MonoImuPipeline.h>
 #include <kimera-vio/pipeline/StereoImuPipeline.h>
@@ -114,12 +113,6 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       node_->declare_parameter<int>("mono_depth.point_stride", 4);
   mono_depth_params.max_points_per_keyframe =
       node_->declare_parameter<int>("mono_depth.max_points_per_keyframe", 5000);
-  mono_depth_params.visualization_point_stride = node_->declare_parameter<int>(
-      "mono_depth.visualization_point_stride", mono_depth_params.point_stride);
-  mono_depth_params.visualization_max_points_per_keyframe =
-      node_->declare_parameter<int>(
-          "mono_depth.visualization_max_points_per_keyframe",
-          mono_depth_params.max_points_per_keyframe);
   mono_depth_params.min_depth_m =
       node_->declare_parameter<double>("mono_depth.min_depth_m", 0.1);
   mono_depth_params.max_depth_m =
@@ -139,23 +132,16 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       "mono_depth.depth_weight_range_power", 2.0);
   mono_depth_params.depth_weight_range_min = node_->declare_parameter<double>(
       "mono_depth.depth_weight_range_min", 0.05);
-  mono_depth_params.visualize_weights =
-      node_->declare_parameter<bool>("mono_depth.visualize_weights", false);
   mono_depth_params.min_confidence =
       node_->declare_parameter<double>("mono_depth.min_confidence", 1.1);
   mono_depth_params.visualize_confidence =
       node_->declare_parameter<bool>("mono_depth.visualize_confidence", false);
-  mono_depth_params.point_radius = static_cast<float>(
-      node_->declare_parameter<double>("mono_depth.point_radius", 0.005));
   mono_depth_params.verbose =
       node_->declare_parameter<bool>("mono_depth.verbose", false);
   mono_depth_params.scale_alignment_method =
       VIO::monoDepthScaleAlignmentMethodFromString(
           node_->declare_parameter<std::string>(
               "mono_depth.scale_alignment_method", "none"));
-  mono_depth_params.visualize_landmark_scale_alignment =
-      node_->declare_parameter<bool>(
-          "mono_depth.visualize_landmark_scale_alignment", false);
   mono_depth_params.da3_essential_factors_enabled =
       node_->declare_parameter<bool>("mono_depth.da3_essential_factors_enabled",
                                      false);
@@ -165,9 +151,6 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   mono_depth_params.da3_baseline_ratio_log_sigma =
       node_->declare_parameter<double>(
           "mono_depth.da3_baseline_ratio_log_sigma", 0.25);
-  mono_depth_params.icp_only_da3_overlap_fusion =
-      node_->declare_parameter<bool>("mono_depth.icp_only_da3_overlap_fusion",
-                                     false);
   mono_depth_params.landmark_scale_flatness_radius =
       node_->declare_parameter<int>("mono_depth.landmark_scale_flatness_radius",
                                     4);
@@ -176,24 +159,6 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
           "mono_depth.landmark_scale_max_relative_depth_variation", 0.15);
   VIO::validateMonoDepthScaleAlignmentConfiguration(
       mono_depth_params.mode, mono_depth_params.scale_alignment_method);
-  VIO::BackendParams &backend_params = *vio_params_->backend_params_;
-  backend_params.vgicp_icp_only_da3_overlap_fusion_ =
-      mono_depth_params.icp_only_da3_overlap_fusion;
-  CHECK(!backend_params.vgicp_icp_only_da3_overlap_fusion_ ||
-        (backend_params.vgicp_factors_enabled_ &&
-         backend_params.vgicp_icp_only_enabled_))
-      << "mono_depth.icp_only_da3_overlap_fusion requires the isolated "
-         "mono-depth diagnostic path to be enabled in BackendParams.yaml";
-  VIO::DenseMapParams &dense_map_params = vio_params_->dense_map_params_;
-  dense_map_params.enabled =
-      node_->declare_parameter<bool>("dense_map.enabled", true);
-  dense_map_params.backend =
-      VIO::denseMapBackendFromString(node_->declare_parameter<std::string>(
-          "dense_map.backend", "gaussian_voxel_map"));
-  dense_map_params.voxel_resolution =
-      node_->declare_parameter<double>("dense_map.voxel_resolution", 0.15);
-  dense_map_params.point_radius = static_cast<float>(
-      node_->declare_parameter<double>("dense_map.point_radius", 0.025));
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
   if (use_rerun_visualizer) {
     rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(

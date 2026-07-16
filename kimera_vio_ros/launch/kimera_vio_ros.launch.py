@@ -256,16 +256,6 @@ def generate_launch_description():
         default_value='5000',
         description='Maximum DA3 point cloud samples added per keyframe.'
     )
-    mono_depth_visualization_point_stride_arg = DeclareLaunchArgument(
-        'mono_depth.visualization_point_stride',
-        default_value='2',
-        description='Pixel sampling stride for mono-depth Rerun and dense-map visualization.'
-    )
-    mono_depth_visualization_max_points_per_keyframe_arg = DeclareLaunchArgument(
-        'mono_depth.visualization_max_points_per_keyframe',
-        default_value='100000',
-        description='Maximum mono-depth samples per keyframe for Rerun and dense-map visualization.'
-    )
     mono_depth_min_depth_arg = DeclareLaunchArgument(
         'mono_depth.min_depth_m',
         default_value='0.1',
@@ -311,11 +301,6 @@ def generate_launch_description():
         default_value='0.05',
         description='Minimum range multiplier for mono-depth ICP weights.'
     )
-    mono_depth_visualize_weights_arg = DeclareLaunchArgument(
-        'mono_depth.visualize_weights',
-        default_value='false',
-        description='Publish a Rerun debug cloud colored by mono-depth ICP weights.'
-    )
     mono_depth_min_confidence_arg = DeclareLaunchArgument(
         'mono_depth.min_confidence',
         default_value='1.1',
@@ -325,11 +310,6 @@ def generate_launch_description():
         'mono_depth.visualize_confidence',
         default_value='false',
         description='Log the newest multi-view DA3 confidence heatmap and threshold mask to Rerun.'
-    )
-    mono_depth_point_radius_arg = DeclareLaunchArgument(
-        'mono_depth.point_radius',
-        default_value='0.005',
-        description='Rerun point radius for the DA3 map.'
     )
     mono_depth_verbose_arg = DeclareLaunchArgument(
         'mono_depth.verbose',
@@ -360,18 +340,6 @@ def generate_launch_description():
         default_value='0.25',
         description='Standard deviation of the DA3 log baseline-ratio residual.',
     )
-    mono_depth_icp_only_da3_overlap_fusion_arg = DeclareLaunchArgument(
-        'mono_depth.icp_only_da3_overlap_fusion',
-        default_value='false',
-        description=(
-            'Replace isolated ICP with DA3-only consecutive-pair overlap fusion.'
-        ),
-    )
-    mono_depth_visualize_landmark_scale_alignment_arg = DeclareLaunchArgument(
-        'mono_depth.visualize_landmark_scale_alignment',
-        default_value='false',
-        description='Log landmark scale weights and rejection reasons as a Rerun image overlay.'
-    )
     mono_depth_landmark_scale_flatness_radius_arg = DeclareLaunchArgument(
         'mono_depth.landmark_scale_flatness_radius',
         default_value='4',
@@ -382,27 +350,6 @@ def generate_launch_description():
         default_value='0.15',
         description='Maximum local relative depth variation before rejecting a landmark-scale sample.'
     )
-    dense_map_enabled_arg = DeclareLaunchArgument(
-        'dense_map.enabled',
-        default_value='true',
-        description='Insert aligned mono depth keyframe clouds into the dense map backend.'
-    )
-    dense_map_backend_arg = DeclareLaunchArgument(
-        'dense_map.backend',
-        default_value='gaussian_voxel_map',
-        description='Dense map backend implementation.'
-    )
-    dense_map_voxel_resolution_arg = DeclareLaunchArgument(
-        'dense_map.voxel_resolution',
-        default_value='0.15',
-        description='Voxel resolution in meters for gaussian_voxel_map.'
-    )
-    dense_map_point_radius_arg = DeclareLaunchArgument(
-        'dense_map.point_radius',
-        default_value='0.025',
-        description='Rerun point radius for dense map visualization.'
-    )
-
     node_arguments = [
         ['--use_lcd=', LaunchConfiguration('use_lcd')],
         ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Mesher.flags'])],
@@ -469,8 +416,6 @@ def generate_launch_description():
         'mono_depth.min_keyframe_distance_m': LaunchConfiguration('mono_depth.min_keyframe_distance_m'),
         'mono_depth.point_stride': LaunchConfiguration('mono_depth.point_stride'),
         'mono_depth.max_points_per_keyframe': LaunchConfiguration('mono_depth.max_points_per_keyframe'),
-        'mono_depth.visualization_point_stride': LaunchConfiguration('mono_depth.visualization_point_stride'),
-        'mono_depth.visualization_max_points_per_keyframe': LaunchConfiguration('mono_depth.visualization_max_points_per_keyframe'),
         'mono_depth.min_depth_m': LaunchConfiguration('mono_depth.min_depth_m'),
         'mono_depth.max_depth_m': LaunchConfiguration('mono_depth.max_depth_m'),
         'mono_depth.depth_weighting_enabled': LaunchConfiguration('mono_depth.depth_weighting_enabled'),
@@ -480,23 +425,15 @@ def generate_launch_description():
         'mono_depth.depth_weight_range_ref': LaunchConfiguration('mono_depth.depth_weight_range_ref'),
         'mono_depth.depth_weight_range_power': LaunchConfiguration('mono_depth.depth_weight_range_power'),
         'mono_depth.depth_weight_range_min': LaunchConfiguration('mono_depth.depth_weight_range_min'),
-        'mono_depth.visualize_weights': LaunchConfiguration('mono_depth.visualize_weights'),
         'mono_depth.min_confidence': LaunchConfiguration('mono_depth.min_confidence'),
         'mono_depth.visualize_confidence': LaunchConfiguration('mono_depth.visualize_confidence'),
-        'mono_depth.point_radius': LaunchConfiguration('mono_depth.point_radius'),
         'mono_depth.verbose': LaunchConfiguration('mono_depth.verbose'),
         'mono_depth.scale_alignment_method': LaunchConfiguration('mono_depth.scale_alignment_method'),
         'mono_depth.da3_essential_factors_enabled': LaunchConfiguration('mono_depth.da3_essential_factors_enabled'),
         'mono_depth.da3_baseline_ratio_factors_enabled': LaunchConfiguration('mono_depth.da3_baseline_ratio_factors_enabled'),
         'mono_depth.da3_baseline_ratio_log_sigma': LaunchConfiguration('mono_depth.da3_baseline_ratio_log_sigma'),
-        'mono_depth.icp_only_da3_overlap_fusion': LaunchConfiguration('mono_depth.icp_only_da3_overlap_fusion'),
-        'mono_depth.visualize_landmark_scale_alignment': LaunchConfiguration('mono_depth.visualize_landmark_scale_alignment'),
         'mono_depth.landmark_scale_flatness_radius': LaunchConfiguration('mono_depth.landmark_scale_flatness_radius'),
         'mono_depth.landmark_scale_max_relative_depth_variation': LaunchConfiguration('mono_depth.landmark_scale_max_relative_depth_variation'),
-        'dense_map.enabled': LaunchConfiguration('dense_map.enabled'),
-        'dense_map.backend': LaunchConfiguration('dense_map.backend'),
-        'dense_map.voxel_resolution': LaunchConfiguration('dense_map.voxel_resolution'),
-        'dense_map.point_radius': LaunchConfiguration('dense_map.point_radius'),
     }]
 
     remappings = [
@@ -585,8 +522,6 @@ def generate_launch_description():
         mono_depth_min_keyframe_distance_arg,
         mono_depth_point_stride_arg,
         mono_depth_max_points_per_keyframe_arg,
-        mono_depth_visualization_point_stride_arg,
-        mono_depth_visualization_max_points_per_keyframe_arg,
         mono_depth_min_depth_arg,
         mono_depth_max_depth_arg,
         mono_depth_depth_weighting_enabled_arg,
@@ -596,22 +531,14 @@ def generate_launch_description():
         mono_depth_depth_weight_range_ref_arg,
         mono_depth_depth_weight_range_power_arg,
         mono_depth_depth_weight_range_min_arg,
-        mono_depth_visualize_weights_arg,
         mono_depth_min_confidence_arg,
         mono_depth_visualize_confidence_arg,
-        mono_depth_point_radius_arg,
         mono_depth_verbose_arg,
         mono_depth_scale_alignment_method_arg,
         mono_depth_da3_essential_factors_enabled_arg,
         mono_depth_da3_baseline_ratio_factors_enabled_arg,
         mono_depth_da3_baseline_ratio_log_sigma_arg,
-        mono_depth_icp_only_da3_overlap_fusion_arg,
-        mono_depth_visualize_landmark_scale_alignment_arg,
         mono_depth_landmark_scale_flatness_radius_arg,
         mono_depth_landmark_scale_max_relative_depth_variation_arg,
-        dense_map_enabled_arg,
-        dense_map_backend_arg,
-        dense_map_voxel_resolution_arg,
-        dense_map_point_radius_arg,
         kimera_vio_node,
     ])
