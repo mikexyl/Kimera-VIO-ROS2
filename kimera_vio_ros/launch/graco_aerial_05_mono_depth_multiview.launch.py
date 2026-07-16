@@ -60,6 +60,23 @@ def generate_launch_description():
         'rerun_recording_id',
         default_value=_timestamped_recording_id(),
     )
+    geometry_filter_enabled_arg = DeclareLaunchArgument(
+        'dense_mapping.geometry_filter_enabled',
+        default_value='true',
+    )
+    geometry_filter_pose_source_arg = DeclareLaunchArgument(
+        'dense_mapping.geometry_filter_pose_source',
+        default_value='da3',
+        description='Depth reprojection pose source: da3 or odometry.',
+    )
+    geometry_filter_max_error_arg = DeclareLaunchArgument(
+        'dense_mapping.geometry_filter_max_relative_depth_error',
+        default_value='0.15',
+    )
+    geometry_filter_visualization_max_error_arg = DeclareLaunchArgument(
+        'dense_mapping.geometry_filter_visualization_max_relative_error',
+        default_value='0.5',
+    )
     mono_depth_engine_arg = DeclareLaunchArgument(
         'mono_depth.engine_path',
         default_value=DA3_TWO_VIEW_ENGINE,
@@ -236,6 +253,20 @@ def generate_launch_description():
             'max_runs_per_submap': '5',
             'min_depth_m': '0.1',
             'max_depth_m': '100.0',
+            'geometry_filter.enabled': LaunchConfiguration(
+                'dense_mapping.geometry_filter_enabled'
+            ),
+            'geometry_filter.pose_source': LaunchConfiguration(
+                'dense_mapping.geometry_filter_pose_source'
+            ),
+            'geometry_filter.max_relative_depth_error': LaunchConfiguration(
+                'dense_mapping.geometry_filter_max_relative_depth_error'
+            ),
+            'geometry_filter.visualization_max_relative_error': (
+                LaunchConfiguration(
+                    'dense_mapping.geometry_filter_visualization_max_relative_error'
+                )
+            ),
             'rerun.enabled': 'true',
             'rerun.application_id': LaunchConfiguration(
                 'rerun_application_id'
@@ -257,6 +288,10 @@ def generate_launch_description():
         rerun_host_arg,
         rerun_application_id_arg,
         rerun_recording_id_arg,
+        geometry_filter_enabled_arg,
+        geometry_filter_pose_source_arg,
+        geometry_filter_max_error_arg,
+        geometry_filter_visualization_max_error_arg,
         mono_depth_engine_arg,
         mono_depth_da3_keyframe_selection_method_arg,
         mono_depth_da3_keyframe_skip_arg,
