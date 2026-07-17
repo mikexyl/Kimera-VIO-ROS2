@@ -14,7 +14,11 @@ from launch.actions import (
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -44,6 +48,7 @@ def _validate(context):
     positive_floats = (
         'playback_rate',
         'playback_delay_s',
+        'playback_duration_s',
         'inference_drain_delay_s',
         'image_cache.duration_s',
     )
@@ -62,8 +67,9 @@ def generate_launch_description():
         DeclareLaunchArgument('input_bag_path'),
         DeclareLaunchArgument('playback_rate', default_value='5.0'),
         DeclareLaunchArgument('playback_delay_s', default_value='3.0'),
+        DeclareLaunchArgument('playback_duration_s', default_value='118.0'),
         DeclareLaunchArgument(
-            'inference_drain_delay_s', default_value='30.0'),
+            'inference_drain_delay_s', default_value='60.0'),
         DeclareLaunchArgument(
             'read_ahead_queue_size', default_value='500'),
         DeclareLaunchArgument(
@@ -74,6 +80,8 @@ def generate_launch_description():
             'submap_sparse_ba.enabled', default_value='true'),
         DeclareLaunchArgument(
             'submap_sparse_ba.global.enabled', default_value='true'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.enabled', default_value='true'),
         DeclareLaunchArgument(
             'submap_sparse_ba.pose_initialization_source',
             default_value='first_estimate'),
@@ -160,6 +168,8 @@ def generate_launch_description():
                 'submap_sparse_ba.enabled'),
             'submap_sparse_ba.global.enabled': LaunchConfiguration(
                 'submap_sparse_ba.global.enabled'),
+            'submap_sparse_ba.depth_refiner.enabled': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.enabled'),
             'submap_sparse_ba.pose_initialization_source': (
                 LaunchConfiguration(
                     'submap_sparse_ba.pose_initialization_source')
@@ -173,6 +183,17 @@ def generate_launch_description():
 
     player = ExecuteProcess(
         cmd=[
+            'timeout',
+            '--signal=INT',
+            PythonExpression([
+                'str(float(',
+                LaunchConfiguration('playback_delay_s'),
+                ') + float(',
+                LaunchConfiguration('playback_duration_s'),
+                ') / float(',
+                LaunchConfiguration('playback_rate'),
+                ') + 1.0)',
+            ]),
             'ros2',
             'bag',
             'play',
