@@ -83,6 +83,28 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'submap_sparse_ba.depth_refiner.enabled', default_value='true'),
         DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.grid_rows', default_value='4'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.grid_cols', default_value='4'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.'
+            'sparse_landmark_constraints.enabled', default_value='true'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.two_view_consistency.enabled',
+            default_value='true'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.two_view_consistency.sample_stride',
+            default_value='16'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'maximum_constraints', default_value='2000'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'measurement_sigma', default_value='0.20'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'max_relative_depth_error', default_value='0.25'),
+        DeclareLaunchArgument(
             'submap_sparse_ba.pose_initialization_source',
             default_value='first_estimate'),
         DeclareLaunchArgument(
@@ -170,6 +192,35 @@ def generate_launch_description():
                 'submap_sparse_ba.global.enabled'),
             'submap_sparse_ba.depth_refiner.enabled': LaunchConfiguration(
                 'submap_sparse_ba.depth_refiner.enabled'),
+            'submap_sparse_ba.depth_refiner.grid_rows': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.grid_rows'),
+            'submap_sparse_ba.depth_refiner.grid_cols': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.grid_cols'),
+            'submap_sparse_ba.depth_refiner.'
+            'sparse_landmark_constraints.enabled': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.'
+                'sparse_landmark_constraints.enabled'),
+            'submap_sparse_ba.depth_refiner.two_view_consistency.enabled': (
+                LaunchConfiguration(
+                    'submap_sparse_ba.depth_refiner.two_view_consistency.'
+                    'enabled')
+            ),
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'sample_stride': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.two_view_consistency.'
+                'sample_stride'),
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'maximum_constraints': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.two_view_consistency.'
+                'maximum_constraints'),
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'measurement_sigma': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.two_view_consistency.'
+                'measurement_sigma'),
+            'submap_sparse_ba.depth_refiner.two_view_consistency.'
+            'max_relative_depth_error': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.two_view_consistency.'
+                'max_relative_depth_error'),
             'submap_sparse_ba.pose_initialization_source': (
                 LaunchConfiguration(
                     'submap_sparse_ba.pose_initialization_source')
