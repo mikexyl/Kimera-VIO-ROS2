@@ -148,6 +148,9 @@ DenseMappingPublisher::DenseMappingPublisher(
   keyframe_publisher_ =
       node_->create_publisher<dense_mapping::msg::KeyframeState>(
           "mapping/keyframes", qos);
+  local_window_publisher_ =
+      node_->create_publisher<pose_graph_tools_msgs::msg::PoseGraph>(
+          "mapping/local_window_poses", qos);
 }
 
 void DenseMappingPublisher::publish(
@@ -156,6 +159,7 @@ void DenseMappingPublisher::publish(
   if (!output) {
     throw std::invalid_argument("cannot publish a null backend output");
   }
+  local_window_publisher_->publish(makeLocalWindowState(*output, odometry));
   keyframe_publisher_->publish(makeKeyframeState(*output, odometry));
 
   if (!output->da3_packet_) {
@@ -269,6 +273,67 @@ dense_mapping::msg::KeyframeState DenseMappingPublisher::makeKeyframeState(
       throw std::invalid_argument("backend landmark residual is malformed");
     }
     message.landmark_updates.push_back(std::move(landmark));
+  }
+  return message;
+}
+
+pose_graph_tools_msgs::msg::PoseGraph
+DenseMappingPublisher::makeLocalWindowState(
+    const VIO::BackendOutput& output,
+    const nav_msgs::msg::Odometry& odometry) const {
+  if (odometry.header.frame_id.empty() ||
+      !finitePose(output.W_State_Blkf_.pose_)) {
+    throw std::invalid_argument(
+        "local-window pose snapshot requires valid output odometry");
+  }
+
+  const gtsam::Key current_key =
+      gtsam::Symbol(VIO::kPoseSymbolChar, output.cur_kf_id_);
+  if (!output.state_.exists(current_key)) {
+    throw std::invalid_argument(
+        "backend local-window state is missing the current keyframe pose");
+  }
+  const gtsam::Pose3 smoother_T_current =
+      output.state_.at<gtsam::Pose3>(current_key);
+  if (!finitePose(smoother_T_current)) {
+    throw std::invalid_argument(
+        "backend current smoother pose is malformed");
+  }
+
+  // state_ is expressed in the fixed-lag smoother frame, while the regular
+  // odometry output is expressed in the incrementally propagated world frame.
+  // Anchor the complete snapshot with the exact current pose used by the ROS
+  // odometry publisher so every emitted pose shares odometry.header.frame_id.
+  const gtsam::Pose3 odometry_T_smoother =
+      output.W_State_Blkf_.pose_ * smoother_T_current.inverse();
+
+  pose_graph_tools_msgs::msg::PoseGraph message;
+  message.header = odometry.header;
+  message.nodes.reserve(output.state_.size());
+  bool found_current = false;
+  for (const gtsam::Key key : output.state_.keys()) {
+    const gtsam::Symbol symbol(key);
+    if (symbol.chr() != VIO::kPoseSymbolChar) {
+      continue;
+    }
+    const gtsam::Pose3 smoother_T_body = output.state_.at<gtsam::Pose3>(key);
+    const gtsam::Pose3 odometry_T_body =
+        odometry_T_smoother * smoother_T_body;
+    if (!finitePose(odometry_T_body)) {
+      throw std::invalid_argument(
+          "backend local-window state contains a malformed pose");
+    }
+    pose_graph_tools_msgs::msg::PoseGraphNode pose;
+    pose.header = odometry.header;
+    pose.robot_id = 0;
+    pose.key = symbol.index();
+    pose.pose = poseToMessage(odometry_T_body);
+    found_current = found_current || pose.key == output.cur_kf_id_;
+    message.nodes.push_back(std::move(pose));
+  }
+  if (message.nodes.empty() || !found_current) {
+    throw std::invalid_argument(
+        "backend local-window state contains no current pose");
   }
   return message;
 }

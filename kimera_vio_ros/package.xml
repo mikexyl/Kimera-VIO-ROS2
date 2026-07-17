@@ -27,6 +27,8 @@
   <depend>pcl_msgs</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
+  <exec_depend>ros2bag</exec_depend>
+  <exec_depend>rosbag2_interfaces</exec_depend>
   <depend>sensor_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>aria_common</depend>

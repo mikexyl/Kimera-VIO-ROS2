@@ -203,14 +203,6 @@ public:
     }
   }
 
-  static size_t runTimestampNSec() {
-    const auto now = std::chrono::system_clock::now().time_since_epoch();
-    return static_cast<size_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(now).count());
-  }
-
-  inline void setRunTime() { this->setTimeNSec(runTimestampNSec()); }
-
   void logGlogMessages(google::LogSeverity severity, const char *filename,
                        int line, const char *message) {
     // glog severity to Rerun log level
@@ -234,7 +226,6 @@ public:
     }
 
     // Forward glog messages to Rerun
-    this->setRunTime();
     this->rec()->log(
         "glog", rerun::TextLog(fmt::format("{}", message)).with_level(level));
   }
@@ -242,7 +233,7 @@ public:
   VIO::VisualizerOutput::UniquePtr
   spinOnce(const VIO::VisualizerInput &input) override {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
-    this->setRunTime();
+    this->setTimeNSec(static_cast<size_t>(input.timestamp_));
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
@@ -361,7 +352,14 @@ public:
   void drawGtTraj(gtsam::Values est_traj_values,
                   const FrameIDTimestampMap &timestamp_map) {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
-    this->setRunTime();
+    if (!timestamp_map.empty()) {
+      const auto latest = std::max_element(
+          timestamp_map.begin(), timestamp_map.end(),
+          [](const auto &left, const auto &right) {
+            return left.second < right.second;
+          });
+      this->setTimeNSec(static_cast<size_t>(latest->second));
+    }
     if (not gt_trajectory_.empty()) {
       if (est_traj_values.size() - prev_alignment_size_ > 50) {
         prev_alignment_size_ = est_traj_values.size();
