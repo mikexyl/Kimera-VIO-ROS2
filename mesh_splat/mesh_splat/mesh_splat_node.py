@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+import time
 from typing import Optional
 
 import numpy as np
@@ -104,7 +105,7 @@ class MeshSplatNode(Node):
             return
 
         mesh = self._latest_mesh
-        rr.set_time("time", timestamp=np.datetime64(mesh.stamp_ns, "ns"))
+        rr.set_time("time", timestamp=np.datetime64(time.time_ns(), "ns"))
         mesh_args = {
             "vertex_positions": mesh.vertex_positions,
             "triangle_indices": mesh.triangle_indices,

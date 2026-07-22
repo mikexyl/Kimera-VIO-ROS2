@@ -233,7 +233,7 @@ public:
   VIO::VisualizerOutput::UniquePtr
   spinOnce(const VIO::VisualizerInput &input) override {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
-    this->setTimeNSec(static_cast<size_t>(input.timestamp_));
+    this->setTime();
     this->drawTf(map_ / odom_ / baselink_,
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
 
@@ -358,7 +358,7 @@ public:
           [](const auto &left, const auto &right) {
             return left.second < right.second;
           });
-      this->setTimeNSec(static_cast<size_t>(latest->second));
+      this->setTime();
     }
     if (not gt_trajectory_.empty()) {
       if (est_traj_values.size() - prev_alignment_size_ > 50) {

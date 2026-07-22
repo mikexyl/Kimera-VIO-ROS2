@@ -26,11 +26,10 @@ VIO::LcdOutput::Ptr makeOutput(VIO::FrameId frame_id,
   output->keypoints_2d_ = {cv::Point2f(10.0f, 20.0f)};
   output->keypoints_3d_ = {gtsam::Point3(0.5, 1.0, 2.0)};
   output->versors_ = {gtsam::Vector3(0.25, 0.5, 1.0)};
-  output->descriptors_mat_ =
-      (cv::Mat_<float>(1, 4) << 1.0f, 2.0f, 3.0f, 4.0f);
-  output->T_base_cam_ =
-      gtsam::Pose3(gtsam::Rot3::Ypr(0.1, 0.2, 0.3),
-                   gtsam::Point3(0.4, 0.5, 0.6));
+  output->landmark_ids_ = {1234};
+  output->descriptors_mat_ = (cv::Mat_<float>(1, 4) << 1.0f, 2.0f, 3.0f, 4.0f);
+  output->T_base_cam_ = gtsam::Pose3(gtsam::Rot3::Ypr(0.1, 0.2, 0.3),
+                                     gtsam::Point3(0.4, 0.5, 0.6));
   output->similarity_penalty = 0.5;
   output->coverage_score = 0.6;
   output->structure_score = 0.7;
@@ -42,9 +41,7 @@ VIO::LcdOutput::Ptr makeOutput(VIO::FrameId frame_id,
     output->timestamp_map_[0] = timestamp - 1;
     output->timestamp_map_[1] = timestamp;
     output->nfg_.add(gtsam::BetweenFactor<gtsam::Pose3>(
-        0,
-        1,
-        gtsam::Pose3(gtsam::Rot3(), gtsam::Point3(1.0, 0.0, 0.0)),
+        0, 1, gtsam::Pose3(gtsam::Rot3(), gtsam::Point3(1.0, 0.0, 0.0)),
         gtsam::noiseModel::Isotropic::Variance(6, 0.01)));
   }
   return output;
@@ -55,22 +52,22 @@ rclcpp::NodeOptions enabledOptions(int descriptor_batch = 1,
                                    double flush_period = 1.0) {
   rclcpp::NodeOptions options;
   options.append_parameter_override("multi_robot_bridge.enabled", true);
-  options.append_parameter_override(
-      "multi_robot_bridge.descriptor_batch_size", descriptor_batch);
+  options.append_parameter_override("multi_robot_bridge.descriptor_batch_size",
+                                    descriptor_batch);
   options.append_parameter_override("multi_robot_bridge.descriptor_stride", 1);
   options.append_parameter_override(
       "multi_robot_bridge.verification_frame_batch_size", frame_batch);
   options.append_parameter_override(
       "multi_robot_bridge.publish_verification_frames", true);
-  options.append_parameter_override(
-      "multi_robot_bridge.flush_period_s", flush_period);
+  options.append_parameter_override("multi_robot_bridge.flush_period_s",
+                                    flush_period);
   options.append_parameter_override("robot_id", 2);
   options.append_parameter_override("frame_id.map", "alpha/map");
   return options;
 }
 
 class MultiRobotBridgeTest : public ::testing::Test {
- protected:
+protected:
   static void SetUpTestSuite() {
     if (!rclcpp::ok()) {
       int argc = 0;
@@ -94,11 +91,10 @@ TEST_F(MultiRobotBridgeTest, UsesExplicitGappedKeyframeIdAndNamespace) {
       rclcpp::QoS(10).reliable().transient_local(),
       [&](const BowQueries::SharedPtr msg) { descriptor = *msg; });
   auto frame_sub = observer->create_subscription<VLCFrames>(
-      "/alpha/kimera_vio/frames/verification",
-      rclcpp::QoS(10).reliable(),
+      "/alpha/kimera_vio/frames/verification", rclcpp::QoS(10).reliable(),
       [&](const VLCFrames::SharedPtr msg) { frames = *msg; });
-  auto node = std::make_shared<rclcpp::Node>(
-      "bridge", "/alpha/kimera_vio", enabledOptions());
+  auto node = std::make_shared<rclcpp::Node>("bridge", "/alpha/kimera_vio",
+                                             enabledOptions());
   MultiRobotLoopClosureBridge bridge(node);
 
   rclcpp::executors::SingleThreadedExecutor executor;
@@ -114,6 +110,8 @@ TEST_F(MultiRobotBridgeTest, UsesExplicitGappedKeyframeIdAndNamespace) {
   ASSERT_EQ(frames.frames.size(), 1u);
   EXPECT_EQ(frames.frames.front().pose_id, 7u);
   EXPECT_EQ(frames.frames.front().depths.front(), 2.0f);
+  ASSERT_EQ(frames.frames.front().landmark_ids.size(), 1u);
+  EXPECT_EQ(frames.frames.front().landmark_ids.front(), 1234);
   EXPECT_FALSE(frames.frames.front().descriptors_mat.data.empty());
   EXPECT_NEAR(frames.frames.front().t_base_cam.position.x, 0.4, 1e-9);
 }
@@ -122,8 +120,7 @@ TEST_F(MultiRobotBridgeTest, DeduplicatesUpdatesAndServesFullSnapshots) {
   auto observer = std::make_shared<rclcpp::Node>("observer_graph");
   std::vector<PoseGraph> updates;
   auto graph_sub = observer->create_subscription<PoseGraph>(
-      "/alpha/kimera_vio/pose_graph/updates",
-      rclcpp::QoS(10).reliable(),
+      "/alpha/kimera_vio/pose_graph/updates", rclcpp::QoS(10).reliable(),
       [&](const PoseGraph::SharedPtr msg) { updates.push_back(*msg); });
   auto node = std::make_shared<rclcpp::Node>(
       "bridge_graph", "/alpha/kimera_vio", enabledOptions());
@@ -140,12 +137,12 @@ TEST_F(MultiRobotBridgeTest, DeduplicatesUpdatesAndServesFullSnapshots) {
   EXPECT_EQ(updates.front().edges.size(), 1u);
   EXPECT_EQ(updates.front().nodes.size(), 2u);
 
-  auto client = observer->create_client<
-      pose_graph_tools_msgs::srv::PoseGraphQuery>(
-      "/alpha/kimera_vio/pose_graph/get");
+  auto client =
+      observer->create_client<pose_graph_tools_msgs::srv::PoseGraphQuery>(
+          "/alpha/kimera_vio/pose_graph/get");
   ASSERT_TRUE(client->wait_for_service(1s));
-  auto request = std::make_shared<
-      pose_graph_tools_msgs::srv::PoseGraphQuery::Request>();
+  auto request =
+      std::make_shared<pose_graph_tools_msgs::srv::PoseGraphQuery::Request>();
   request->robot_id = 2;
   auto future = client->async_send_request(request);
   ASSERT_EQ(executor.spin_until_future_complete(future, 1s),
@@ -161,7 +158,9 @@ TEST_F(MultiRobotBridgeTest, FlushesPartialBatchesOnTimer) {
   auto descriptor_sub = observer->create_subscription<BowQueries>(
       "/alpha/kimera_vio/descriptors/global",
       rclcpp::QoS(10).reliable().transient_local(),
-      [&](const BowQueries::SharedPtr msg) { descriptor_count += msg->queries.size(); });
+      [&](const BowQueries::SharedPtr msg) {
+        descriptor_count += msg->queries.size();
+      });
   auto node = std::make_shared<rclcpp::Node>(
       "bridge_timer", "/alpha/kimera_vio", enabledOptions(10, 10, 0.02));
   MultiRobotLoopClosureBridge bridge(node);
@@ -176,13 +175,21 @@ TEST_F(MultiRobotBridgeTest, FlushesPartialBatchesOnTimer) {
   EXPECT_EQ(descriptor_count, 1u);
 }
 
-TEST_F(MultiRobotBridgeTest, PublishesEmptySequentialDescriptorSlots) {
+TEST_F(MultiRobotBridgeTest, SkipsNonSequenceOutputs) {
   auto observer = std::make_shared<rclcpp::Node>("observer_empty_descriptor");
-  BowQueries descriptor;
+  size_t descriptor_count = 0;
+  size_t frame_count = 0;
   auto descriptor_sub = observer->create_subscription<BowQueries>(
       "/alpha/kimera_vio/descriptors/global",
       rclcpp::QoS(10).reliable().transient_local(),
-      [&](const BowQueries::SharedPtr msg) { descriptor = *msg; });
+      [&](const BowQueries::SharedPtr msg) {
+        descriptor_count += msg->queries.size();
+      });
+  auto frame_sub = observer->create_subscription<VLCFrames>(
+      "/alpha/kimera_vio/frames/verification", rclcpp::QoS(10).reliable(),
+      [&](const VLCFrames::SharedPtr msg) {
+        frame_count += msg->frames.size();
+      });
   auto node = std::make_shared<rclcpp::Node>(
       "bridge_empty_descriptor", "/alpha/kimera_vio", enabledOptions());
   MultiRobotLoopClosureBridge bridge(node);
@@ -195,9 +202,31 @@ TEST_F(MultiRobotBridgeTest, PublishesEmptySequentialDescriptorSlots) {
   bridge.publishLcdOutput(output);
   executor.spin_some();
 
-  ASSERT_EQ(descriptor.queries.size(), 1u);
-  EXPECT_EQ(descriptor.queries.front().pose_id, 19u);
-  EXPECT_TRUE(descriptor.queries.front().bow_vector.word_values.empty());
+  EXPECT_EQ(descriptor_count, 0u);
+  EXPECT_EQ(frame_count, 0u);
+}
+
+TEST_F(MultiRobotBridgeTest, RejectsIncompleteSequenceVerificationFrame) {
+  auto observer = std::make_shared<rclcpp::Node>("observer_incomplete_frame");
+  size_t frame_count = 0;
+  auto frame_sub = observer->create_subscription<VLCFrames>(
+      "/alpha/kimera_vio/frames/verification", rclcpp::QoS(10).reliable(),
+      [&](const VLCFrames::SharedPtr msg) {
+        frame_count += msg->frames.size();
+      });
+  auto node = std::make_shared<rclcpp::Node>(
+      "bridge_incomplete_frame", "/alpha/kimera_vio", enabledOptions());
+  MultiRobotLoopClosureBridge bridge(node);
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(observer);
+  executor.add_node(node);
+
+  auto output = makeOutput(23);
+  output->descriptors_mat_.release();
+  bridge.publishLcdOutput(output);
+  executor.spin_some();
+
+  EXPECT_EQ(frame_count, 0u);
 }
 
 TEST_F(MultiRobotBridgeTest, DisabledBridgeCreatesNoEndpoints) {
@@ -209,5 +238,5 @@ TEST_F(MultiRobotBridgeTest, DisabledBridgeCreatesNoEndpoints) {
   bridge.publishLcdOutput(makeOutput(1, true));
 }
 
-}  // namespace
-}  // namespace kimera_vio_ros::interfaces
+} // namespace
+} // namespace kimera_vio_ros::interfaces

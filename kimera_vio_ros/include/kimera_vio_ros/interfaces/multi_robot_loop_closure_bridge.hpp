@@ -50,6 +50,7 @@ class MultiRobotLoopClosureBridge {
     VIO::KeypointsCV keypoints_2d;
     VIO::Landmarks keypoints_3d;
     VIO::BearingVectors versors;
+    VIO::LandmarkIds landmark_ids;
     decltype(VIO::LcdOutput::bow_vec_) bow_vec;
     VIO::OrbDescriptor descriptors_mat;
     gtsam::Pose3 T_base_cam;

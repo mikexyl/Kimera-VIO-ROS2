@@ -14,13 +14,6 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
 
-POSE_CONDITIONED_DA3_ENGINE = (
-    '/home/mikexyl/workspaces/xfeat_cpp_ws/xfeat-cpp/onnx_model/'
-    'mono_depth/depth_anything_v3/'
-    'DA3-LARGE-1.1_pose_v2_350x504_fp16.engine'
-)
-
-
 def _timestamped_recording_id():
     timestamp = datetime.now().astimezone().strftime('%Y%m%d_%H%M%S_%z')
     return f'graco-aerial-05-da3-odometry-conditioned-{timestamp}'
@@ -115,11 +108,18 @@ def generate_launch_description():
             'point_stride': '4',
             'max_points_per_view': '100000',
             'max_points_per_submap': '200000',
-            'max_runs_per_submap': '5',
+            'max_runs_per_submap': LaunchConfiguration(
+                'max_runs_per_submap'),
             'min_depth_m': '0.1',
             'max_depth_m': '100.0',
             'geometry_filter.max_relative_depth_error': '0.15',
             'geometry_filter.visualization_max_relative_error': '0.5',
+            'geometry_filter.minimum_disparity_px': LaunchConfiguration(
+                'geometry_filter.minimum_disparity_px'),
+            'geometry_filter.visualization_max_disparity_px': (
+                LaunchConfiguration(
+                    'geometry_filter.visualization_max_disparity_px')
+            ),
             'rerun.enabled': 'true',
             'rerun.application_id': rerun_application_id,
             'rerun.recording_id': rerun_recording_id,
@@ -141,14 +141,19 @@ def generate_launch_description():
             'rosbag_path', default_value='/data/graco/aerial-05-40m'),
         DeclareLaunchArgument('rosbag_play_duration', default_value='0.0'),
         DeclareLaunchArgument('rosbag_rate', default_value='1.0'),
+        DeclareLaunchArgument('max_runs_per_submap', default_value='1'),
+        DeclareLaunchArgument(
+            'geometry_filter.minimum_disparity_px', default_value='100.0'),
+        DeclareLaunchArgument(
+            'geometry_filter.visualization_max_disparity_px',
+            default_value='100.0'),
         DeclareLaunchArgument('start_zenoh_router', default_value='true'),
         DeclareLaunchArgument(
             'record_experiment_inputs', default_value='true'),
         DeclareLaunchArgument(
             'experiment_input_bag_path',
             default_value=_timestamped_input_bag_path()),
-        DeclareLaunchArgument(
-            'engine_path', default_value=POSE_CONDITIONED_DA3_ENGINE),
+        DeclareLaunchArgument('engine_path'),
         DeclareLaunchArgument(
             'camera_calibration_path',
             default_value=PathJoinSubstitution([

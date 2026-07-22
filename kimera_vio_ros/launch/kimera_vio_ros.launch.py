@@ -216,6 +216,11 @@ def generate_launch_description():
         default_value='false',
         description='Run DA3 monocular depth on keyframes and log an accumulated point cloud to Rerun.'
     )
+    dense_mapping_publisher_enabled_arg = DeclareLaunchArgument(
+        'dense_mapping.publisher_enabled',
+        default_value='false',
+        description='Publish keyframe state for downstream dense mapping.'
+    )
     mono_depth_engine_path_arg = DeclareLaunchArgument(
         'mono_depth.engine_path',
         default_value=default_mono_depth_engine,
@@ -401,6 +406,9 @@ def generate_launch_description():
         'rerun_application_id': LaunchConfiguration('rerun_application_id'),
         'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
         'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
+        'dense_mapping.publisher_enabled': LaunchConfiguration(
+            'dense_mapping.publisher_enabled'
+        ),
         'mono_depth.enabled': LaunchConfiguration('mono_depth.enabled'),
         'mono_depth.engine_path': LaunchConfiguration('mono_depth.engine_path'),
         'mono_depth.mode': LaunchConfiguration('mono_depth.mode'),
@@ -513,6 +521,7 @@ def generate_launch_description():
         rerun_application_id_arg,
         rerun_recording_id_arg,
         rerun_result_dir_arg,
+        dense_mapping_publisher_enabled_arg,
         mono_depth_enabled_arg,
         mono_depth_engine_path_arg,
         mono_depth_mode_arg,

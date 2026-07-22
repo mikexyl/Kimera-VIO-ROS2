@@ -291,7 +291,6 @@ def generate_launch_description():
             'rerun.host': LaunchConfiguration('rerun_host'),
             'rerun.entity_prefix': 'a5/dense_mapping',
             'rerun.point_radius': '1.0',
-            'sparse_global_ba.enabled': 'false',
         }.items(),
     )
 

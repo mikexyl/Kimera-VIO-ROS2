@@ -8,11 +8,10 @@ from launch.actions import (
     ExecuteProcess,
     IncludeLaunchDescription,
     OpaqueFunction,
-    RegisterEventHandler,
     TimerAction,
 )
-from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     LaunchConfiguration,
@@ -21,17 +20,21 @@ from launch.substitutions import (
 )
 from launch_ros.substitutions import FindPackageShare
 
-
-POSE_CONDITIONED_DA3_ENGINE = (
-    '/home/mikexyl/workspaces/xfeat_cpp_ws/xfeat-cpp/onnx_model/'
-    'mono_depth/depth_anything_v3/'
-    'DA3-LARGE-1.1_pose_v2_350x504_fp16.engine'
-)
+from dense_mapping_launch import process_exit_handler
 
 
 def _timestamped_recording_id():
     timestamp = datetime.now().astimezone().strftime('%Y%m%d_%H%M%S_%z')
     return f'graco-aerial-05-da3-conditioned-offline-{timestamp}'
+
+
+def _boolean_argument(context, name):
+    value = LaunchConfiguration(name).perform(context).lower()
+    if value in ('true', '1', 'yes', 'on'):
+        return True
+    if value in ('false', '0', 'no', 'off'):
+        return False
+    raise RuntimeError(f'{name} must be a boolean')
 
 
 def _validate(context):
@@ -51,27 +54,56 @@ def _validate(context):
         'playback_duration_s',
         'inference_drain_delay_s',
         'image_cache.duration_s',
+        'zenoh_router_startup_delay_s',
+        'geometry_filter.minimum_disparity_px',
+        'geometry_filter.visualization_max_disparity_px',
     )
     for argument in positive_floats:
         if float(LaunchConfiguration(argument).perform(context)) <= 0.0:
             raise RuntimeError(f'{argument} must be positive')
-    if int(
-        LaunchConfiguration('read_ahead_queue_size').perform(context)
-    ) <= 0:
-        raise RuntimeError('read_ahead_queue_size must be positive')
+    for argument in (
+        'read_ahead_queue_size',
+        'output_qos.depth',
+        'max_runs_per_submap',
+    ):
+        if int(LaunchConfiguration(argument).perform(context)) <= 0:
+            raise RuntimeError(f'{argument} must be positive')
+    ba_enabled = _boolean_argument(context, 'submap_sparse_ba.enabled')
+    global_enabled = _boolean_argument(
+        context, 'submap_sparse_ba.global.enabled')
+    depth_refiner_enabled = _boolean_argument(
+        context, 'submap_sparse_ba.depth_refiner.enabled')
+    if global_enabled and not ba_enabled:
+        raise RuntimeError(
+            'submap_sparse_ba.global.enabled requires '
+            'submap_sparse_ba.enabled')
+    if depth_refiner_enabled and not global_enabled:
+        raise RuntimeError(
+            'submap_sparse_ba.depth_refiner.enabled requires '
+            'submap_sparse_ba.global.enabled')
     return []
 
 
 def generate_launch_description():
     arguments = [
         DeclareLaunchArgument('input_bag_path'),
-        DeclareLaunchArgument('playback_rate', default_value='5.0'),
+        DeclareLaunchArgument('start_zenoh_router', default_value='true'),
+        DeclareLaunchArgument(
+            'zenoh_router_startup_delay_s', default_value='1.0'),
+        DeclareLaunchArgument('playback_rate', default_value='1.0'),
         DeclareLaunchArgument('playback_delay_s', default_value='3.0'),
         DeclareLaunchArgument('playback_duration_s', default_value='118.0'),
         DeclareLaunchArgument(
             'inference_drain_delay_s', default_value='60.0'),
         DeclareLaunchArgument(
             'read_ahead_queue_size', default_value='500'),
+        DeclareLaunchArgument('output_qos.depth', default_value='1000'),
+        DeclareLaunchArgument('max_runs_per_submap', default_value='1'),
+        DeclareLaunchArgument(
+            'geometry_filter.minimum_disparity_px', default_value='100.0'),
+        DeclareLaunchArgument(
+            'geometry_filter.visualization_max_disparity_px',
+            default_value='100.0'),
         DeclareLaunchArgument(
             'image_cache.duration_s', default_value='15.0'),
         DeclareLaunchArgument(
@@ -90,8 +122,17 @@ def generate_launch_description():
             'submap_sparse_ba.depth_refiner.'
             'sparse_landmark_constraints.enabled', default_value='true'),
         DeclareLaunchArgument(
-            'submap_sparse_ba.depth_refiner.two_view_consistency.enabled',
+            'submap_sparse_ba.depth_refiner.landmark_support_filter.enabled',
             default_value='true'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.landmark_support_filter.radius_px',
+            default_value='128'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.landmark_support_filter.'
+            'minimum_landmarks', default_value='3'),
+        DeclareLaunchArgument(
+            'submap_sparse_ba.depth_refiner.two_view_consistency.enabled',
+            default_value='false'),
         DeclareLaunchArgument(
             'submap_sparse_ba.depth_refiner.two_view_consistency.sample_stride',
             default_value='16'),
@@ -112,9 +153,9 @@ def generate_launch_description():
             default_value='8.0'),
         DeclareLaunchArgument(
             'submap_sparse_ba.minimum_idle_run_count', default_value='1'),
-        DeclareLaunchArgument('engine_path', default_value=(
-            POSE_CONDITIONED_DA3_ENGINE
-        )),
+        DeclareLaunchArgument(
+            'comparison.da3_chain.enabled', default_value='true'),
+        DeclareLaunchArgument('engine_path'),
         DeclareLaunchArgument(
             'camera_calibration_path',
             default_value=PathJoinSubstitution([
@@ -166,16 +207,24 @@ def generate_launch_description():
                 'image_cache.duration_s'),
             'raw_image_qos.reliability': 'reliable',
             'raw_image_qos.depth': '200',
+            'output_qos.depth': LaunchConfiguration('output_qos.depth'),
             'inference.maximum_pending_runs': LaunchConfiguration(
                 'inference.maximum_pending_runs'),
             'point_stride': '4',
             'max_points_per_view': '100000',
             'max_points_per_submap': '200000',
-            'max_runs_per_submap': '5',
+            'max_runs_per_submap': LaunchConfiguration(
+                'max_runs_per_submap'),
             'min_depth_m': '0.1',
             'max_depth_m': '100.0',
             'geometry_filter.max_relative_depth_error': '0.15',
             'geometry_filter.visualization_max_relative_error': '0.5',
+            'geometry_filter.minimum_disparity_px': LaunchConfiguration(
+                'geometry_filter.minimum_disparity_px'),
+            'geometry_filter.visualization_max_disparity_px': (
+                LaunchConfiguration(
+                    'geometry_filter.visualization_max_disparity_px')
+            ),
             'rerun.enabled': LaunchConfiguration('rerun.enabled'),
             'rerun.application_id': LaunchConfiguration(
                 'rerun.application_id'),
@@ -200,6 +249,19 @@ def generate_launch_description():
             'sparse_landmark_constraints.enabled': LaunchConfiguration(
                 'submap_sparse_ba.depth_refiner.'
                 'sparse_landmark_constraints.enabled'),
+            'submap_sparse_ba.depth_refiner.landmark_support_filter.enabled': (
+                LaunchConfiguration(
+                    'submap_sparse_ba.depth_refiner.'
+                    'landmark_support_filter.enabled')
+            ),
+            'submap_sparse_ba.depth_refiner.landmark_support_filter.'
+            'radius_px': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.'
+                'landmark_support_filter.radius_px'),
+            'submap_sparse_ba.depth_refiner.landmark_support_filter.'
+            'minimum_landmarks': LaunchConfiguration(
+                'submap_sparse_ba.depth_refiner.'
+                'landmark_support_filter.minimum_landmarks'),
             'submap_sparse_ba.depth_refiner.two_view_consistency.enabled': (
                 LaunchConfiguration(
                     'submap_sparse_ba.depth_refiner.two_view_consistency.'
@@ -229,6 +291,8 @@ def generate_launch_description():
                 'submap_sparse_ba.idle_optimization_delay_s'),
             'submap_sparse_ba.minimum_idle_run_count': LaunchConfiguration(
                 'submap_sparse_ba.minimum_idle_run_count'),
+            'comparison.da3_chain.enabled': LaunchConfiguration(
+                'comparison.da3_chain.enabled'),
         }.items(),
     )
 
@@ -260,45 +324,74 @@ def generate_launch_description():
         ],
         output='screen',
     )
+    request_final_global_ba = ExecuteProcess(
+        cmd=[
+            'ros2',
+            'service',
+            'call',
+            '/a5/dense_mapping_experiment/odometry_conditioned/'
+            'request_global_ba',
+            'std_srvs/srv/Trigger',
+            '{}',
+        ],
+        output='screen',
+        condition=IfCondition(
+            LaunchConfiguration('submap_sparse_ba.global.enabled')),
+    )
+    resume_request = ExecuteProcess(
+        cmd=[
+            'ros2',
+            'service',
+            'call',
+            '/rosbag2_player/resume',
+            'rosbag2_interfaces/srv/Resume',
+            '{}',
+        ],
+        output='screen',
+    )
     resume_player = TimerAction(
         period=LaunchConfiguration('playback_delay_s'),
-        actions=[
-            ExecuteProcess(
-                cmd=[
-                    'ros2',
-                    'service',
-                    'call',
-                    '/rosbag2_player/resume',
-                    'rosbag2_interfaces/srv/Resume',
-                    '{}',
-                ],
-                output='screen',
-            ),
-        ],
+        actions=[resume_request],
     )
-    shutdown_after_drain = RegisterEventHandler(
-        OnProcessExit(
-            target_action=player,
-            on_exit=[
-                TimerAction(
-                    period=LaunchConfiguration('inference_drain_delay_s'),
-                    actions=[
-                        EmitEvent(event=Shutdown(
-                            reason=(
-                                'offline rosbag finished and inference '
-                                'queue drained'
-                            )
-                        )),
-                    ],
-                ),
-            ],
-        )
+    drain_shutdown = TimerAction(
+        period=LaunchConfiguration('inference_drain_delay_s'),
+        actions=[EmitEvent(event=Shutdown(
+            reason='offline rosbag finished and inference queue drained'
+        ))],
+    )
+    player_exit = process_exit_handler(
+        player,
+        'offline rosbag player',
+        expected_return_codes=(0, 124),
+        on_expected=(request_final_global_ba, drain_shutdown),
+    )
+    final_ba_request_exit = process_exit_handler(
+        request_final_global_ba,
+        'final global BA service request',
+        expected_return_codes=(0,),
+    )
+    resume_request_exit = process_exit_handler(
+        resume_request,
+        'rosbag resume service request',
+        expected_return_codes=(0,),
+    )
+    zenoh_router = ExecuteProcess(
+        cmd=['ros2', 'run', 'rmw_zenoh_cpp', 'rmw_zenohd'],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('start_zenoh_router')),
+        on_exit=EmitEvent(event=Shutdown(
+            reason='ROS 2 Zenoh router exited')),
+    )
+    pipeline = TimerAction(
+        period=LaunchConfiguration('zenoh_router_startup_delay_s'),
+        actions=[experiment, player, resume_player],
     )
 
     return LaunchDescription(arguments + [
         OpaqueFunction(function=_validate),
-        experiment,
-        player,
-        resume_player,
-        shutdown_after_drain,
+        zenoh_router,
+        player_exit,
+        final_ba_request_exit,
+        resume_request_exit,
+        pipeline,
     ])

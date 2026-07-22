@@ -491,7 +491,7 @@ class ProjectiveMesherNode : public rclcpp::Node {
       return;
     }
 
-    rerun_visualizer_->setTimeNSec(stampToNanoseconds(input.header.stamp));
+    rerun_visualizer_->setTime();
 
     if (log_rerun_camera_pose_) {
       rerun_visualizer_->drawTf(rerun_camera_entity_path_,
