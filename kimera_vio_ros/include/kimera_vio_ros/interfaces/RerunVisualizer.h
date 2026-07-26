@@ -26,6 +26,15 @@
 
 namespace VIO {
 
+template <typename Target, typename Source>
+auto gtsamDynamicPointerCast(const Source &source) {
+#if GTSAM_VERSION_MAJOR <= 4 && GTSAM_VERSION_MINOR < 3
+  return boost::dynamic_pointer_cast<Target>(source);
+#else
+  return std::dynamic_pointer_cast<Target>(source);
+#endif
+}
+
 // Alias for the custom log handler signature
 using GlogHandler =
     std::function<void(google::LogSeverity severity, const char *filename,
@@ -427,23 +436,23 @@ public:
 
   static bool
   isMonoDepthIcpFactor(const gtsam::NonlinearFactor::shared_ptr &factor) {
-    return std::dynamic_pointer_cast<gtsam_points::IntegratedWeightedICPFactor>(
-               factor) != nullptr ||
-           std::dynamic_pointer_cast<gtsam_points::IntegratedVGICPFactor>(
+    return gtsamDynamicPointerCast<
+               gtsam_points::IntegratedWeightedICPFactor>(factor) != nullptr ||
+           gtsamDynamicPointerCast<gtsam_points::IntegratedVGICPFactor>(
                factor) != nullptr;
   }
 
   static bool
   isDa3EssentialMatrixFactor(
       const gtsam::NonlinearFactor::shared_ptr &factor) {
-    return std::dynamic_pointer_cast<CameraAwareEssentialMatrixFactor>(factor) !=
+    return gtsamDynamicPointerCast<CameraAwareEssentialMatrixFactor>(factor) !=
            nullptr;
   }
 
   static bool
   isDa3BaselineRatioFactor(
       const gtsam::NonlinearFactor::shared_ptr &factor) {
-    return std::dynamic_pointer_cast<CameraAwareBaselineRatioFactor>(factor) !=
+    return gtsamDynamicPointerCast<CameraAwareBaselineRatioFactor>(factor) !=
            nullptr;
   }
 
@@ -744,7 +753,7 @@ public:
         continue;
       } else if (diff > 1 and keys.size() == 2) { // loop closure edge
         auto between_factor =
-            std::dynamic_pointer_cast<gtsam::BetweenFactor<gtsam::Pose3>>(
+            gtsamDynamicPointerCast<gtsam::BetweenFactor<gtsam::Pose3>>(
                 factor);
         if (not between_factor) {
           factor->print();
@@ -753,11 +762,11 @@ public:
         auto noise = between_factor->noiseModel();
         CHECK(noise);
         auto gauss =
-            std::dynamic_pointer_cast<gtsam::noiseModel::Gaussian>(noise);
+            gtsamDynamicPointerCast<gtsam::noiseModel::Gaussian>(noise);
         if (not gauss) {
           auto robust =
-              std::dynamic_pointer_cast<gtsam::noiseModel::Robust>(noise);
-          gauss = std::dynamic_pointer_cast<gtsam::noiseModel::Gaussian>(
+              gtsamDynamicPointerCast<gtsam::noiseModel::Robust>(noise);
+          gauss = gtsamDynamicPointerCast<gtsam::noiseModel::Gaussian>(
               robust->noise());
         }
         CHECK(gauss);
