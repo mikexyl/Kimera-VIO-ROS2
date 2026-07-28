@@ -117,6 +117,9 @@ def generate_launch_description():
         'models.lightglue_lcd', default_value=''
     )
     model_jist_arg = DeclareLaunchArgument('models.jist', default_value='')
+    model_mixvpr_arg = DeclareLaunchArgument(
+        'models.mixvpr', default_value=''
+    )
     params_folder_arg = DeclareLaunchArgument(
         'params_folder',
         default_value=PathJoinSubstitution([
@@ -140,6 +143,16 @@ def generate_launch_description():
         'topic.imu.data',
         default_value='/imu0',
         description='IMU topic.'
+    )
+    use_external_odom_arg = DeclareLaunchArgument(
+        'use_external_odom',
+        default_value='false',
+        description='Fuse an external odometry input when true.'
+    )
+    topic_external_odom_arg = DeclareLaunchArgument(
+        'topic.external_odom',
+        default_value='external_odom',
+        description='External odometry input topic.'
     )
     use_camera_info_arg = DeclareLaunchArgument(
         'use_camera_info',
@@ -210,6 +223,19 @@ def generate_launch_description():
         'rerun_result_dir',
         default_value='',
         description='Optional directory for Rerun side outputs. Empty disables file output.'
+    )
+    rerun_visualization_profile_arg = DeclareLaunchArgument(
+        'rerun_visualization_profile',
+        default_value='full',
+        description=(
+            'VIO Rerun payload profile: full, tracking_image_only, or '
+            'tracking_image_and_trajectory.'
+        )
+    )
+    rerun_tracking_image_jpeg_quality_arg = DeclareLaunchArgument(
+        'rerun_tracking_image_jpeg_quality',
+        default_value='80',
+        description='JPEG quality for the tracking_image_only Rerun profile.'
     )
     mono_depth_enabled_arg = DeclareLaunchArgument(
         'mono_depth.enabled',
@@ -357,6 +383,7 @@ def generate_launch_description():
     )
     node_arguments = [
         ['--use_lcd=', LaunchConfiguration('use_lcd')],
+        ['--use_external_odometry=', LaunchConfiguration('use_external_odom')],
         ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'Mesher.flags'])],
         ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'VioBackend.flags'])],
         ['--flagfile=', PathJoinSubstitution([LaunchConfiguration('params_folder'), 'flags', 'RegularVioBackend.flags'])],
@@ -374,6 +401,7 @@ def generate_launch_description():
         'params_folder': LaunchConfiguration('params_folder'),
         'use_sim_time': LaunchConfiguration('use_sim_time'),
         'use_lcd': LaunchConfiguration('use_lcd'),
+        'use_external_odom': LaunchConfiguration('use_external_odom'),
         'robot_id': LaunchConfiguration('robot_id'),
         'robot_name': LaunchConfiguration('robot_name'),
         'bow_batch_size': LaunchConfiguration('bow_batch_size'),
@@ -392,6 +420,7 @@ def generate_launch_description():
         'models.lightglue_frontend': LaunchConfiguration('models.lightglue_frontend'),
         'models.lightglue_lcd': LaunchConfiguration('models.lightglue_lcd'),
         'models.jist': LaunchConfiguration('models.jist'),
+        'models.mixvpr': LaunchConfiguration('models.mixvpr'),
         'frame_id.base_link': LaunchConfiguration('frame_id.base_link'),
         'frame_id.odom': LaunchConfiguration('frame_id.odom'),
         'frame_id.map': LaunchConfiguration('frame_id.map'),
@@ -406,6 +435,12 @@ def generate_launch_description():
         'rerun_application_id': LaunchConfiguration('rerun_application_id'),
         'rerun_recording_id': LaunchConfiguration('rerun_recording_id'),
         'rerun_result_dir': LaunchConfiguration('rerun_result_dir'),
+        'rerun_visualization_profile': LaunchConfiguration(
+            'rerun_visualization_profile'
+        ),
+        'rerun_tracking_image_jpeg_quality': LaunchConfiguration(
+            'rerun_tracking_image_jpeg_quality'
+        ),
         'dense_mapping.publisher_enabled': LaunchConfiguration(
             'dense_mapping.publisher_enabled'
         ),
@@ -448,6 +483,7 @@ def generate_launch_description():
         ('left/image', LaunchConfiguration('topic.left.image')),
         ('right/image', LaunchConfiguration('topic.right.image')),
         ('imu/data', LaunchConfiguration('topic.imu.data')),
+        ('external_odom', LaunchConfiguration('topic.external_odom')),
         ('left/camera_info', LaunchConfiguration('topic.left.info')),
         ('right/camera_info', LaunchConfiguration('topic.right.info')),
         ('odometry', 'odometry'),
@@ -503,10 +539,13 @@ def generate_launch_description():
         model_lightglue_frontend_arg,
         model_lightglue_lcd_arg,
         model_jist_arg,
+        model_mixvpr_arg,
         params_folder_arg,
         topic_left_image_arg,
         topic_right_image_arg,
         topic_imu_data_arg,
+        use_external_odom_arg,
+        topic_external_odom_arg,
         use_camera_info_arg,
         topic_left_info_arg,
         topic_right_info_arg,
@@ -521,6 +560,8 @@ def generate_launch_description():
         rerun_application_id_arg,
         rerun_recording_id_arg,
         rerun_result_dir_arg,
+        rerun_visualization_profile_arg,
+        rerun_tracking_image_jpeg_quality_arg,
         dense_mapping_publisher_enabled_arg,
         mono_depth_enabled_arg,
         mono_depth_engine_path_arg,

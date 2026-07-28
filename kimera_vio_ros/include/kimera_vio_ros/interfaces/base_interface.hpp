@@ -9,6 +9,7 @@
 #include "kimera-vio/pipeline/Pipeline.h"
 #include "kimera_vio_ros/interfaces/local_loop_closure_publisher.hpp"
 #include "kimera_vio_ros/interfaces/multi_robot_loop_closure_bridge.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
@@ -44,6 +45,11 @@ protected:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
 private:
+  void externalOdometryCallback(
+    const nav_msgs::msg::Odometry::SharedPtr odometry);
+
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr
+    external_odometry_subscriber_;
   rclcpp::CallbackGroup::SharedPtr callback_group_pipeline_;
   rclcpp::TimerBase::SharedPtr pipeline_timer_;
   std::future<bool> handle_pipeline_;

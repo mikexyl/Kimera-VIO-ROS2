@@ -30,10 +30,6 @@ VIO::LcdOutput::Ptr makeOutput(VIO::FrameId frame_id,
   output->descriptors_mat_ = (cv::Mat_<float>(1, 4) << 1.0f, 2.0f, 3.0f, 4.0f);
   output->T_base_cam_ = gtsam::Pose3(gtsam::Rot3::Ypr(0.1, 0.2, 0.3),
                                      gtsam::Point3(0.4, 0.5, 0.6));
-  output->similarity_penalty = 0.5;
-  output->coverage_score = 0.6;
-  output->structure_score = 0.7;
-
   if (include_graph) {
     output->states_.insert(0, gtsam::Pose3());
     output->states_.insert(
@@ -64,6 +60,19 @@ rclcpp::NodeOptions enabledOptions(int descriptor_batch = 1,
   options.append_parameter_override("robot_id", 2);
   options.append_parameter_override("frame_id.map", "alpha/map");
   return options;
+}
+
+template <typename Predicate>
+bool spinUntil(rclcpp::executors::SingleThreadedExecutor &executor,
+               Predicate predicate) {
+  for (size_t attempt = 0; attempt < 100; ++attempt) {
+    executor.spin_some();
+    if (predicate()) {
+      return true;
+    }
+    std::this_thread::sleep_for(10ms);
+  }
+  return false;
 }
 
 class MultiRobotBridgeTest : public ::testing::Test {
@@ -100,12 +109,19 @@ TEST_F(MultiRobotBridgeTest, UsesExplicitGappedKeyframeIdAndNamespace) {
   rclcpp::executors::SingleThreadedExecutor executor;
   executor.add_node(observer);
   executor.add_node(node);
+  ASSERT_TRUE(spinUntil(executor, [&]() {
+    return node->count_subscribers("descriptors/global") >= 1 &&
+           node->count_subscribers("frames/verification") >= 1;
+  }));
   bridge.publishLcdOutput(makeOutput(7));
-  executor.spin_some();
+  ASSERT_TRUE(spinUntil(executor, [&]() {
+    return descriptor.queries.size() == 1 && frames.frames.size() == 1;
+  }));
 
   ASSERT_EQ(descriptor.queries.size(), 1u);
   EXPECT_EQ(descriptor.queries.front().pose_id, 7u);
   EXPECT_EQ(descriptor.queries.front().robot_id, 2u);
+  EXPECT_TRUE(descriptor.queries.front().bow_vector.word_ids.empty());
   EXPECT_EQ(descriptor.queries.front().bow_vector.word_values.size(), 2u);
   ASSERT_EQ(frames.frames.size(), 1u);
   EXPECT_EQ(frames.frames.front().pose_id, 7u);
@@ -150,6 +166,59 @@ TEST_F(MultiRobotBridgeTest, DeduplicatesUpdatesAndServesFullSnapshots) {
   const auto response = future.get();
   EXPECT_EQ(response->pose_graph.edges.size(), 1u);
   EXPECT_EQ(response->pose_graph.nodes.size(), 2u);
+}
+
+TEST_F(MultiRobotBridgeTest, RepublishesRevisedOdometryFactors) {
+  auto observer = std::make_shared<rclcpp::Node>("observer_revised_graph");
+  std::vector<PoseGraph> updates;
+  auto graph_sub = observer->create_subscription<PoseGraph>(
+      "/alpha/kimera_vio/pose_graph/updates", rclcpp::QoS(10).reliable(),
+      [&](const PoseGraph::SharedPtr msg) { updates.push_back(*msg); });
+  auto node = std::make_shared<rclcpp::Node>(
+      "bridge_revised_graph", "/alpha/kimera_vio", enabledOptions());
+  MultiRobotLoopClosureBridge bridge(node);
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(observer);
+  executor.add_node(node);
+  ASSERT_TRUE(spinUntil(executor, [&]() {
+    return node->count_subscribers("pose_graph/updates") >= 1;
+  }));
+
+  auto output = makeOutput(12, true);
+  bridge.publishLcdOutput(output);
+  ASSERT_TRUE(spinUntil(executor, [&]() { return updates.size() == 1; }));
+  output->nfg_ = gtsam::NonlinearFactorGraph();
+  output->nfg_.add(gtsam::BetweenFactor<gtsam::Pose3>(
+      0, 1, gtsam::Pose3(gtsam::Rot3(), gtsam::Point3(1.25, 0.0, 0.0)),
+      gtsam::noiseModel::Isotropic::Variance(6, 0.01)));
+  bridge.publishLcdOutput(output);
+  ASSERT_TRUE(spinUntil(executor, [&]() { return updates.size() == 2; }));
+  output->states_.clear();
+  output->states_.insert(
+      0, gtsam::Pose3(gtsam::Rot3(), gtsam::Point3(0.5, 0.0, 0.0)));
+  output->states_.insert(
+      1, gtsam::Pose3(gtsam::Rot3(), gtsam::Point3(1.75, 0.0, 0.0)));
+  bridge.publishLcdOutput(output);
+  ASSERT_TRUE(spinUntil(executor, [&]() { return updates.size() == 3; }));
+
+  ASSERT_EQ(updates.size(), 3u);
+  ASSERT_EQ(updates.back().edges.size(), 1u);
+  EXPECT_TRUE(updates.back().nodes.empty());
+  EXPECT_NEAR(updates.back().edges.front().pose.position.x, 1.25, 1e-9);
+
+  auto client =
+      observer->create_client<pose_graph_tools_msgs::srv::PoseGraphQuery>(
+          "/alpha/kimera_vio/pose_graph/get");
+  ASSERT_TRUE(client->wait_for_service(1s));
+  auto request =
+      std::make_shared<pose_graph_tools_msgs::srv::PoseGraphQuery::Request>();
+  request->robot_id = 2;
+  auto future = client->async_send_request(request);
+  ASSERT_EQ(executor.spin_until_future_complete(future, 1s),
+            rclcpp::FutureReturnCode::SUCCESS);
+  const auto response = future.get();
+  ASSERT_EQ(response->pose_graph.edges.size(), 1u);
+  EXPECT_NEAR(response->pose_graph.edges.front().pose.position.x, 1.25, 1e-9);
 }
 
 TEST_F(MultiRobotBridgeTest, FlushesPartialBatchesOnTimer) {

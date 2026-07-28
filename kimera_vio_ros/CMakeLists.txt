@@ -39,7 +39,9 @@ find_package(xfeat-cpp REQUIRED)
 find_package(pose_graph_tools_msgs REQUIRED)
 find_library(SYSTEM_CURL_LIBRARY
   NAMES curl
-  PATHS /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+  PATHS
+    /lib/${CMAKE_LIBRARY_ARCHITECTURE}
+    /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
   NO_DEFAULT_PATH
   REQUIRED)
 

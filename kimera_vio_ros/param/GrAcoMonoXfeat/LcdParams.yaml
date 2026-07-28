@@ -90,14 +90,12 @@ max_lmk_reproj_error: 20
 # Sequence VPR settings are parsed even when LCD is disabled.
 vpr_model_type: jist
 vpr_model_path: ""
-vpr_seq_interval: 1
+vpr_seq_interval: 2
 vpr_max_sequence_distance_m: 10.0
 vpr_short_sequence_policy: wait
 
-min_seq_coverage_score: 0.0
-min_seq_structure_score: 0.0
-max_covisibility_score: 1.0
-min_sim_score: 0.0
+max_covisibility_score: 0.1
+min_sim_score: 0.85
 
 publish_only_sequence: false
 use_covis_projection: 1

@@ -54,7 +54,6 @@ class MultiRobotLoopClosureBridge {
     decltype(VIO::LcdOutput::bow_vec_) bow_vec;
     VIO::OrbDescriptor descriptors_mat;
     gtsam::Pose3 T_base_cam;
-    std::vector<float> scores;
 
     explicit CachedFrame(const VIO::LcdOutput& output);
   };
@@ -97,7 +96,6 @@ class MultiRobotLoopClosureBridge {
   std::map<uint64_t, PoseGraphNodeMsg> nodes_;
   std::map<EdgeId, PoseGraphEdgeMsg> edges_;
   std::set<uint64_t> sent_nodes_;
-  std::set<EdgeId> sent_edges_;
   std::set<VIO::FrameId> queued_descriptor_ids_;
   std::set<VIO::FrameId> queued_verification_frame_ids_;
   BowQueriesMsg pending_descriptors_;

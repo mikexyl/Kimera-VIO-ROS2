@@ -19,7 +19,13 @@ ImuInterface::ImuInterface(rclcpp::Node::SharedPtr &node)
   imu_opt.callback_group = callback_group_imu_;
 
   std::string imu_topic = "imu/data";
-  auto qos = rclcpp::SensorDataQoS();
+  // Match the tested ROS 1 data provider: retain up to 1000 IMU samples and
+  // use reliable delivery so short executor stalls do not silently discard
+  // high-rate measurements before they reach Kimera's IMU buffer.
+  constexpr size_t kImuQueueDepth = 1000u;
+  auto qos = rclcpp::QoS(rclcpp::KeepLast(kImuQueueDepth));
+  qos.reliable();
+  qos.durability_volatile();
   imu_sub_ = node->create_subscription<Imu>(
       imu_topic, qos,
       std::bind(&ImuInterface::imu_cb, this, std::placeholders::_1), imu_opt);

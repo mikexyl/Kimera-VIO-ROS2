@@ -1,6 +1,5 @@
 #include "kimera_vio_ros/interfaces/multi_robot_loop_closure_bridge.hpp"
 
-#include <cv_bridge/cv_bridge.h>
 #include <gtsam/linear/NoiseModel.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <pcl/point_cloud.h>
@@ -10,9 +9,12 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <utility>
+
+#include "kimera_vio_ros/utils/cv_bridge_compat.hpp"
 
 namespace kimera_vio_ros::interfaces {
 namespace {
@@ -63,6 +65,31 @@ void covarianceToMsg(const gtsam::Matrix &covariance,
   }
 }
 
+gtsam::Pose3 poseFromMsg(const geometry_msgs::msg::Pose &pose) {
+  return gtsam::Pose3(
+      gtsam::Rot3::Quaternion(pose.orientation.w, pose.orientation.x,
+                              pose.orientation.y, pose.orientation.z),
+      gtsam::Point3(pose.position.x, pose.position.y, pose.position.z));
+}
+
+bool samePose(const geometry_msgs::msg::Pose &lhs,
+              const geometry_msgs::msg::Pose &rhs) {
+  return poseFromMsg(lhs).equals(poseFromMsg(rhs), 1e-9);
+}
+
+bool sameFactor(const pose_graph_tools_msgs::msg::PoseGraphEdge &lhs,
+                const pose_graph_tools_msgs::msg::PoseGraphEdge &rhs) {
+  if (!samePose(lhs.pose, rhs.pose)) {
+    return false;
+  }
+  for (size_t i = 0; i < lhs.covariance.size(); ++i) {
+    if (std::abs(lhs.covariance[i] - rhs.covariance[i]) > 1e-12) {
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace
 
 MultiRobotLoopClosureBridge::CachedFrame::CachedFrame(
@@ -71,11 +98,7 @@ MultiRobotLoopClosureBridge::CachedFrame::CachedFrame(
       keypoints_3d(output.keypoints_3d_), versors(output.versors_),
       landmark_ids(output.landmark_ids_), bow_vec(output.bow_vec_),
       descriptors_mat(output.descriptors_mat_.clone()),
-      T_base_cam(output.T_base_cam_) {
-  scores = {static_cast<float>(output.similarity_penalty),
-            static_cast<float>(output.coverage_score),
-            static_cast<float>(output.structure_score)};
-}
+      T_base_cam(output.T_base_cam_) {}
 
 MultiRobotLoopClosureBridge::MultiRobotLoopClosureBridge(
     const rclcpp::Node::SharedPtr &node)
@@ -171,6 +194,7 @@ void MultiRobotLoopClosureBridge::publishLcdOutput(
 
 void MultiRobotLoopClosureBridge::updatePoseGraph(const VIO::LcdOutput &output,
                                                   PoseGraphMsg *incremental) {
+  std::set<uint64_t> revised_nodes;
   const auto keys = output.states_.keys();
   for (const auto key : keys) {
     if (!output.states_.exists(key)) {
@@ -185,6 +209,10 @@ void MultiRobotLoopClosureBridge::updatePoseGraph(const VIO::LcdOutput &output,
         rclcpp::Time(time_it == output.timestamp_map_.end() ? output.timestamp_
                                                             : time_it->second);
     poseToMsg(output.states_.at<gtsam::Pose3>(key), &node.pose);
+    const auto previous = nodes_.find(key);
+    if (previous != nodes_.end() && !samePose(previous->second.pose, node.pose)) {
+      revised_nodes.insert(key);
+    }
     nodes_.insert_or_assign(key, node);
     if (sent_nodes_.insert(key).second) {
       incremental->nodes.push_back(node);
@@ -209,8 +237,12 @@ void MultiRobotLoopClosureBridge::updatePoseGraph(const VIO::LcdOutput &output,
     poseToMsg(factor->measured(), &edge.pose);
     covarianceToMsg(factorCovariance(factor->noiseModel()), &edge.covariance);
     const EdgeId id{edge.key_from, edge.key_to, edge.type};
+    const auto previous = edges_.find(id);
+    const bool changed =
+        previous == edges_.end() || !sameFactor(previous->second, edge) ||
+        revised_nodes.count(edge.key_from) || revised_nodes.count(edge.key_to);
     edges_.insert_or_assign(id, edge);
-    if (sent_edges_.insert(id).second) {
+    if (changed) {
       incremental->edges.push_back(edge);
       for (const auto key : {edge.key_from, edge.key_to}) {
         const auto node_it = nodes_.find(key);
@@ -232,11 +264,10 @@ void MultiRobotLoopClosureBridge::queueDescriptor(VIO::FrameId frame_id,
   query.header.stamp = rclcpp::Time(frame.timestamp_ns);
   query.robot_id = robot_id_;
   query.pose_id = static_cast<uint32_t>(frame_id);
-  for (const auto &[word_id, value] : frame.bow_vec) {
-    query.bow_vector.word_ids.push_back(static_cast<uint32_t>(word_id));
-    query.bow_vector.word_values.push_back(static_cast<float>(value));
+  for (const auto &entry : frame.bow_vec) {
+    query.bow_vector.word_values.push_back(
+        static_cast<float>(entry.second));
   }
-  query.bow_vector.scores = frame.scores;
   pending_descriptors_.queries.push_back(std::move(query));
 }
 

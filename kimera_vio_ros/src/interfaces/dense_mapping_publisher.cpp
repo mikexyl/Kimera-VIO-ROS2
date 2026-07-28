@@ -1,6 +1,6 @@
 #include "kimera_vio_ros/interfaces/dense_mapping_publisher.hpp"
 
-#include "cv_bridge/cv_bridge.h"
+#include "kimera_vio_ros/utils/cv_bridge_compat.hpp"
 #include "sensor_msgs/image_encodings.hpp"
 
 #include <cmath>

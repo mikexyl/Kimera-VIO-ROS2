@@ -140,7 +140,7 @@ disp12MaxDiff: 1
 # For grayscale with sadWindowSize=15: 8 * 1 * 225 = 1800
 P1: 10
 
-# P2: Penalty for large disparity changes  
+# P2: Penalty for large disparity changes
 # Typical formula: 32 * channels * block_size^2
 # Should be > P1, typically 4x P1
 # For grayscale with sadWindowSize=15: 32 * 1 * 225 = 7200

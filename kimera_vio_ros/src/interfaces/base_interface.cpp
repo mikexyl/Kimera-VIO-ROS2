@@ -1,7 +1,11 @@
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
+
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/navigation/NavState.h>
 
 #include "kimera_vio_ros/interfaces/RerunVisualizer.h"
 #include "kimera_vio_ros/interfaces/base_interface.hpp"
@@ -31,6 +35,11 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   odom_frame_id_ = node_->declare_parameter("frame_id.odom", "odom");
   map_frame_id_ = node_->declare_parameter("frame_id.map", "map");
   world_frame_id_ = node_->declare_parameter("frame_id.world", "world");
+  const bool use_external_odom = node_->declare_parameter(
+      "use_external_odom", FLAGS_use_external_odometry);
+  CHECK_EQ(use_external_odom, FLAGS_use_external_odometry)
+      << "The use_external_odom ROS parameter and "
+         "--use_external_odometry flag must match";
 
   std::string params_folder_;
   params_folder_ = node_->declare_parameter("params_folder", "");
@@ -74,6 +83,17 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
         << jist_model_path;
     vio_params_->lcd_params_.vpr_model_path_ = jist_model_path;
   }
+  const auto mixvpr_model_path =
+      node_->declare_parameter<std::string>("models.mixvpr", "");
+  if (!mixvpr_model_path.empty()) {
+    CHECK(vio_params_->lcd_params_.vpr_model_type_ ==
+          VIO::VprModelType::kMixVPR)
+        << "models.mixvpr was supplied for a non-MixVPR VPR profile";
+    CHECK(std::filesystem::is_regular_file(mixvpr_model_path))
+        << "Model parameter 'models.mixvpr' does not point to a readable file: "
+        << mixvpr_model_path;
+    vio_params_->lcd_params_.vpr_model_path_ = mixvpr_model_path;
+  }
   // Determine if this is a mono or stereo setup based on number of cameras
   bool is_mono = vio_params_->frontend_type_ == VIO::FrontendType::kMonoImu;
 
@@ -89,6 +109,32 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       node_->declare_parameter<std::string>("rerun_result_dir", "");
   const auto rerun_host = node_->declare_parameter<std::string>(
       "rerun_host", "rerun+http://127.0.0.1:9876/proxy");
+  const auto rerun_visualization_profile_name =
+      node_->declare_parameter<std::string>("rerun_visualization_profile",
+                                           "full");
+  VIO::RerunVisualizer::VisualizationProfile rerun_visualization_profile =
+      VIO::RerunVisualizer::VisualizationProfile::kFull;
+  if (rerun_visualization_profile_name == "full") {
+    rerun_visualization_profile =
+        VIO::RerunVisualizer::VisualizationProfile::kFull;
+  } else if (rerun_visualization_profile_name == "tracking_image_only") {
+    rerun_visualization_profile =
+        VIO::RerunVisualizer::VisualizationProfile::kTrackingImageOnly;
+  } else if (rerun_visualization_profile_name ==
+             "tracking_image_and_trajectory") {
+    rerun_visualization_profile =
+        VIO::RerunVisualizer::VisualizationProfile::
+            kTrackingImageAndTrajectory;
+  } else {
+    LOG(FATAL) << "rerun_visualization_profile must be 'full', "
+                  "'tracking_image_only', or "
+                  "'tracking_image_and_trajectory', got: "
+               << rerun_visualization_profile_name;
+  }
+  const auto rerun_tracking_image_jpeg_quality =
+      node_->declare_parameter<int>("rerun_tracking_image_jpeg_quality", 80);
+  CHECK_GE(rerun_tracking_image_jpeg_quality, 1);
+  CHECK_LE(rerun_tracking_image_jpeg_quality, 100);
   const auto use_rerun_visualizer =
       node_->declare_parameter<bool>("use_rerun_visualizer", FLAGS_visualize);
   VIO::MonoDepthParams &mono_depth_params = vio_params_->mono_depth_params_;
@@ -168,7 +214,12 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
                                      .map_frame_id = map_frame_id_,
                                      .recording_id = rerun_recording_id,
                                      .result_dir = rerun_result_dir,
-                                     .rerun_host = rerun_host});
+                                     .rerun_host = rerun_host,
+                                     .visualization_profile =
+                                         rerun_visualization_profile,
+                                     .tracking_image_jpeg_quality =
+                                         static_cast<int>(
+                                             rerun_tracking_image_jpeg_quality)});
   }
 
   vio_pipeline_.reset();
@@ -197,6 +248,17 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
           CHECK_NOTNULL(multi_robot_bridge_.get())->publishLcdOutput(msg);
         });
   }
+
+  if (use_external_odom) {
+    registerExternalOdomCallback(
+        std::bind(&VIO::Pipeline::fillExternalOdomQueue, vio_pipeline_.get(),
+                  std::placeholders::_1));
+    external_odometry_subscriber_ =
+        node_->create_subscription<nav_msgs::msg::Odometry>(
+            "external_odom", rclcpp::QoS(1000),
+            std::bind(&BaseInterface::externalOdometryCallback, this,
+                      std::placeholders::_1));
+  }
 }
 
 BaseInterface::~BaseInterface() {
@@ -218,6 +280,33 @@ void BaseInterface::start() {
         10ms, std::bind(&VIO::Pipeline::spin, vio_pipeline_.get()),
         callback_group_pipeline_);
   }
+}
+
+void BaseInterface::externalOdometryCallback(
+    const nav_msgs::msg::Odometry::SharedPtr odometry) {
+  CHECK(odometry);
+  CHECK(external_odom_callback_);
+
+  const auto &message_pose = odometry->pose.pose;
+  const gtsam::Pose3 world_pose_body(
+      gtsam::Rot3::Quaternion(message_pose.orientation.w,
+                              message_pose.orientation.x,
+                              message_pose.orientation.y,
+                              message_pose.orientation.z),
+      gtsam::Point3(message_pose.position.x, message_pose.position.y,
+                    message_pose.position.z));
+
+  // ROS odometry expresses linear velocity in the child/body frame. Kimera's
+  // NavState expects it in the world frame.
+  const auto &linear_velocity = odometry->twist.twist.linear;
+  const gtsam::Vector3 body_velocity(linear_velocity.x, linear_velocity.y,
+                                    linear_velocity.z);
+  const gtsam::Vector3 world_velocity =
+      world_pose_body.rotation() * body_velocity;
+
+  external_odom_callback_(VIO::ExternalOdomMeasurement(
+      rclcpp::Time(odometry->header.stamp).nanoseconds(),
+      gtsam::NavState(world_pose_body, world_velocity)));
 }
 
 } // namespace interfaces

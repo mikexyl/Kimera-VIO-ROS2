@@ -10,6 +10,7 @@
 #include <kimera-vio/factors/CameraAwareBaselineRatioFactor.h>
 #include <kimera-vio/factors/CameraAwareEssentialMatrixFactor.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <spdlog/fmt/fmt.h>
 
@@ -96,6 +97,12 @@ private:
 
 class RerunVisualizer : public Visualizer3D, aria::viz::VisualizerRerun {
 public:
+  enum class VisualizationProfile {
+    kFull,
+    kTrackingImageOnly,
+    kTrackingImageAndTrajectory,
+  };
+
   struct Params {
     std::string application_id = "kimera_vio";
     std::string base_link_frame_id = "baselink";
@@ -105,40 +112,53 @@ public:
     std::optional<std::string> recording_id = std::nullopt;
     std::string result_dir = "";
     std::string rerun_host = "rerun+http://127.0.0.1:9876/proxy";
+    VisualizationProfile visualization_profile =
+        VisualizationProfile::kFull;
+    int tracking_image_jpeg_quality = 80;
   };
 
   RerunVisualizer(const Params &params)
       : RerunVisualizer(params.application_id, params.base_link_frame_id,
                         params.odom_frame_id, params.map_frame_id, params.gt_csv_file,
                         params.recording_id, params.result_dir,
-                        params.rerun_host) {}
+                        params.rerun_host, params.visualization_profile,
+                        params.tracking_image_jpeg_quality) {}
 
   RerunVisualizer(std::string application_id, std::string base_link_frame_id,
                   std::string odom_frame_id, std::string map_frame_id,
                   std::string gt_csv_file,
                   std::optional<std::string> recording_id,
-                  std::string result_dir, std::string rerun_host)
+                  std::string result_dir, std::string rerun_host,
+                  VisualizationProfile visualization_profile,
+                  int tracking_image_jpeg_quality)
       : VIO::Visualizer3D(VIO::VisualizationType::kNone),
         aria::viz::VisualizerRerun(aria::viz::VisualizerRerun::Params(
             application_id, recording_id, rerun_host)),
         baselink_(base_link_frame_id), map_(map_frame_id), odom_(odom_frame_id),
-        result_dir_(result_dir) {
-    // draw the origin frame for visualization
-    this->drawTf(map_, Pose3::Identity(), 0.3, true);
+        result_dir_(result_dir), visualization_profile_(visualization_profile),
+        tracking_image_jpeg_quality_(tracking_image_jpeg_quality) {
+    CHECK_GE(tracking_image_jpeg_quality_, 1);
+    CHECK_LE(tracking_image_jpeg_quality_, 100);
 
-    if (not g_custom_sink) {
-      AddGlogCustomSink([this](google::LogSeverity severity,
-                               const char *filename, int line,
-                               const char *message) {
-        logGlogMessages(severity, filename, line, message);
-      });
-      RedirectStdCoutToGlog();
+    if (visualization_profile_ == VisualizationProfile::kFull) {
+      // Draw the origin and forward process logs only for the detailed
+      // profile. The tracking-only profile must remain a bounded image stream.
+      this->drawTf(map_, Pose3::Identity(), 0.3, true);
+      if (not g_custom_sink) {
+        AddGlogCustomSink([this](google::LogSeverity severity,
+                                 const char *filename, int line,
+                                 const char *message) {
+          logGlogMessages(severity, filename, line, message);
+        });
+        RedirectStdCoutToGlog();
+      }
     }
 
     auto landmark_color = aria::viz::ColorMap::kGray;
     landmark_color[3] = 50;
 
-    if (not gt_csv_file.empty()) {
+    if (visualization_profile_ == VisualizationProfile::kFull &&
+        not gt_csv_file.empty()) {
       gt_trajectory_ = loadTrajectoryMapFromCSV(gt_csv_file);
       std::vector<gtsam::Pose3> gt_traj;
       for (const auto &[key, pose] : gt_trajectory_) {
@@ -243,34 +263,31 @@ public:
   spinOnce(const VIO::VisualizerInput &input) override {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
     this->setTime();
-    this->drawTf(map_ / odom_ / baselink_,
-                 input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
+    if (visualization_profile_ ==
+        VisualizationProfile::kTrackingImageOnly) {
+      drawTrackingImage(input);
+      return std::make_unique<VIO::VisualizerOutput>();
+    }
+
+    drawOdometryPose(input);
+    if (visualization_profile_ ==
+        VisualizationProfile::kTrackingImageAndTrajectory) {
+      drawTrackingImage(input);
+      return std::make_unique<VIO::VisualizerOutput>();
+    }
+
+    drawFullOdometryTrajectory();
 
     VLOG(2) << "Backend output timestamp: " << input.timestamp_;
 
-    odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
     odom_states_.insert(input.backend_output_->cur_kf_id_,
                         input.backend_output_->W_State_Blkf_.pose_);
     timestamp_map_.insert(
         {input.backend_output_->cur_kf_id_, input.timestamp_});
-    this->drawTrajectory(map_ / odom_ / "trajectory", odom_traj_,
-                         aria::viz::ColorMap::kGreen, 1.f, false);
-
-    // auto cur_cov = input.backend_output_->state_covariance_lkf_;
-    // this->drawUncertainty(map_ / odom_ / baselink_ / "covariance",
-    //                       Pose3::Identity(), cur_cov.block<3, 3>(0, 0),
-    //                       aria::viz::ColorMap::kGreen, 0.1);
 
     drawCameraEntity(input);
 
-    if (not input.frontend_output_->getTrackingImage()->empty()) {
-      cv::Mat tracking_image_clone =
-          input.frontend_output_->getTrackingImage()->clone();
-      cv::Mat small_image;
-      cv::resize(tracking_image_clone, small_image, cv::Size(), 0.5, 0.5);
-      this->drawImage(map_ / odom_ / baselink_ / "tracking" / "image",
-                      small_image, false);
-    }
+    drawTrackingImage(input);
 
     drawMonoDepthConfidence(input);
 
@@ -319,6 +336,54 @@ public:
     this->checkAndSaveTrajectories(odom_states_);
 
     return std::make_unique<VIO::VisualizerOutput>();
+  }
+
+  void drawOdometryPose(const VIO::VisualizerInput &input) {
+    this->drawTf(map_ / odom_ / baselink_,
+                 input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
+    odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
+
+    // The lightweight trajectory profile sends one cumulative line strip
+    // every 50 keyframes. This keeps the raw VIO path visible without the
+    // full profile's per-frame O(N) trajectory traffic.
+    if (visualization_profile_ ==
+            VisualizationProfile::kTrackingImageAndTrajectory &&
+        (odom_traj_.size() == 1u || odom_traj_.size() % 50u == 0u)) {
+      this->drawTrajectory(map_ / odom_ / "trajectory", odom_traj_,
+                           aria::viz::ColorMap::kGreen, 1.f, false);
+    }
+  }
+
+  void drawFullOdometryTrajectory() {
+    this->drawTrajectory(map_ / odom_ / "trajectory", odom_traj_,
+                         aria::viz::ColorMap::kGreen, 1.f, false);
+  }
+
+  void drawTrackingImage(const VIO::VisualizerInput &input) {
+    const cv::Mat *tracking_image =
+        input.frontend_output_->getTrackingImage();
+    if (tracking_image == nullptr || tracking_image->empty()) {
+      return;
+    }
+
+    cv::Mat small_image;
+    cv::resize(*tracking_image, small_image, cv::Size(), 0.5, 0.5);
+    const std::filesystem::path image_path =
+        map_ / odom_ / baselink_ / "tracking" / "image";
+    if (visualization_profile_ == VisualizationProfile::kFull) {
+      this->drawImage(image_path, small_image, false);
+      return;
+    }
+
+    std::vector<uchar> jpeg;
+    CHECK(cv::imencode(
+        ".jpg", small_image, jpeg,
+        {cv::IMWRITE_JPEG_QUALITY, tracking_image_jpeg_quality_}));
+    this->rec()->log(
+        image_path.string(),
+        rerun::EncodedImage::from_bytes(
+            rerun::take_ownership(std::move(jpeg)),
+            rerun::components::MediaType::jpeg()));
   }
 
   void drawCameraEntity(const VIO::VisualizerInput &input) {
@@ -855,6 +920,9 @@ private:
   size_t prev_alignment_size_ = 0;
 
   std::string result_dir_{};
+  VisualizationProfile visualization_profile_{
+      VisualizationProfile::kFull};
+  int tracking_image_jpeg_quality_{80};
 
   PointsWithIdMap landmarks_in_odom_;
   std::vector<Pose3> camera_traj_;
