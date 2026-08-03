@@ -1,5 +1,8 @@
 %YAML:1.0
-# GrAco stereo JIST profile used by the April 6, 2026 jist-aug-ds run.
+# Proven GrAco A5678 stereo JIST + augmentation + dynamic-sequence profile.
+# Sequence boundary: anchor covisibility <= 0.1.
+# Consecutive-frame covisibility rejection is disabled at 1.0.
+# Descriptor self-similarity filtering is enabled at 0.85.
 # The TensorRT engine path is supplied explicitly by the launch file.
 use_nss: 1
 alpha: 1
@@ -64,8 +67,6 @@ ransac_2d3d_algorithm: 3
 lcd_lg_num_features: 500
 lcd_lg_model_path: ""
 lcd_faiss_index_path: ""
-xfeat_nv_head_model_path: ""
-netvlad_model_path: ""
 
 local_window_size: 0
 
@@ -84,7 +85,8 @@ vpr_short_sequence_policy: wait
 
 max_covisibility_score: 0.1
 min_sim_score: 0.0
-max_consecutive_frame_covisibility_score: 0.8
+min_keyframe_diversity_score: 0.85
+max_consecutive_frame_covisibility_score: 1.0
 
 publish_only_sequence: false
 use_covis_projection: 1

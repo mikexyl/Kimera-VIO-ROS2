@@ -55,20 +55,14 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       CHECK(std::filesystem::is_regular_file(value))
           << "Model parameter '" << parameter
           << "' does not point to a readable file: " << value;
+      CHECK_EQ(std::filesystem::path(value).extension(), ".engine")
+          << "Model parameter '" << parameter
+          << "' requires a TensorRT .engine file: " << value;
       *target = value;
     }
   };
   override_path("models.xfeat",
                 &vio_params_->frontend_params_.feature_detector_params_.xfeat_path_);
-  override_path(
-      "models.xfeat_interp_bilinear",
-      &vio_params_->frontend_params_.feature_detector_params_.interp_bilinear_path_);
-  override_path(
-      "models.xfeat_interp_bicubic",
-      &vio_params_->frontend_params_.feature_detector_params_.interp_bicubic_path_);
-  override_path(
-      "models.xfeat_interp_nearest",
-      &vio_params_->frontend_params_.feature_detector_params_.interp_nearest_path_);
   override_path("models.lightglue_frontend",
                 &vio_params_->frontend_params_.tracker_params_.lighterglue_model_path_);
   override_path("models.lightglue_lcd", &vio_params_->lcd_params_.lcd_lg_model_path_);
@@ -81,6 +75,9 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
     CHECK(std::filesystem::is_regular_file(jist_model_path))
         << "Model parameter 'models.jist' does not point to a readable file: "
         << jist_model_path;
+    CHECK_EQ(std::filesystem::path(jist_model_path).extension(), ".engine")
+        << "Model parameter 'models.jist' requires a TensorRT .engine file: "
+        << jist_model_path;
     vio_params_->lcd_params_.vpr_model_path_ = jist_model_path;
   }
   const auto mixvpr_model_path =
@@ -92,7 +89,48 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
     CHECK(std::filesystem::is_regular_file(mixvpr_model_path))
         << "Model parameter 'models.mixvpr' does not point to a readable file: "
         << mixvpr_model_path;
+    CHECK_EQ(std::filesystem::path(mixvpr_model_path).extension(), ".engine")
+        << "Model parameter 'models.mixvpr' requires a TensorRT .engine file: "
+        << mixvpr_model_path;
     vio_params_->lcd_params_.vpr_model_path_ = mixvpr_model_path;
+  }
+  auto &dense_stereo_params =
+      vio_params_->frontend_params_.stereo_matching_params_.dense_stereo_params_;
+  const auto stereo_depth_method =
+      node_->declare_parameter<std::string>("stereo_depth.method", "");
+  if (!stereo_depth_method.empty()) {
+    dense_stereo_params.stereo_depth_method_ =
+        VIO::stereoDepthMethodFromString(stereo_depth_method);
+  }
+  const auto stereo_depth_model =
+      node_->declare_parameter<std::string>("models.stereo_depth", "");
+  if (!stereo_depth_model.empty()) {
+    CHECK(dense_stereo_params.stereo_depth_method_ ==
+              VIO::StereoDepthMethod::LIGHTSTEREO ||
+          dense_stereo_params.stereo_depth_method_ ==
+              VIO::StereoDepthMethod::FAST_FOUNDATION_STEREO)
+        << "models.stereo_depth is only valid for a TensorRT stereo method";
+    CHECK(std::filesystem::is_regular_file(stereo_depth_model))
+        << "Model parameter 'models.stereo_depth' does not point to a "
+           "readable file: "
+        << stereo_depth_model;
+    CHECK_EQ(std::filesystem::path(stereo_depth_model).extension(), ".engine")
+        << "Model parameter 'models.stereo_depth' requires a TensorRT "
+           ".engine file: "
+        << stereo_depth_model;
+    dense_stereo_params.engine_path_ = stereo_depth_model;
+  }
+  if (dense_stereo_params.stereo_depth_method_ ==
+          VIO::StereoDepthMethod::LIGHTSTEREO ||
+      dense_stereo_params.stereo_depth_method_ ==
+          VIO::StereoDepthMethod::FAST_FOUNDATION_STEREO) {
+    CHECK(std::filesystem::is_regular_file(dense_stereo_params.engine_path_))
+        << VIO::stereoDepthMethodToString(
+               dense_stereo_params.stereo_depth_method_)
+        << " requires a readable TensorRT engine: "
+        << dense_stereo_params.engine_path_;
+    CHECK_EQ(std::filesystem::path(dense_stereo_params.engine_path_).extension(),
+             ".engine");
   }
   // Determine if this is a mono or stereo setup based on number of cameras
   bool is_mono = vio_params_->frontend_type_ == VIO::FrontendType::kMonoImu;
@@ -117,18 +155,12 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   if (rerun_visualization_profile_name == "full") {
     rerun_visualization_profile =
         VIO::RerunVisualizer::VisualizationProfile::kFull;
-  } else if (rerun_visualization_profile_name == "tracking_image_only") {
+  } else if (rerun_visualization_profile_name == "minimal") {
     rerun_visualization_profile =
-        VIO::RerunVisualizer::VisualizationProfile::kTrackingImageOnly;
-  } else if (rerun_visualization_profile_name ==
-             "tracking_image_and_trajectory") {
-    rerun_visualization_profile =
-        VIO::RerunVisualizer::VisualizationProfile::
-            kTrackingImageAndTrajectory;
+        VIO::RerunVisualizer::VisualizationProfile::kMinimal;
   } else {
-    LOG(FATAL) << "rerun_visualization_profile must be 'full', "
-                  "'tracking_image_only', or "
-                  "'tracking_image_and_trajectory', got: "
+    LOG(FATAL) << "rerun_visualization_profile must be 'full' or 'minimal', "
+                  "got: "
                << rerun_visualization_profile_name;
   }
   const auto rerun_tracking_image_jpeg_quality =

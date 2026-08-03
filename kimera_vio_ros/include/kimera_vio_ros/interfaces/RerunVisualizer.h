@@ -99,8 +99,7 @@ class RerunVisualizer : public Visualizer3D, aria::viz::VisualizerRerun {
 public:
   enum class VisualizationProfile {
     kFull,
-    kTrackingImageOnly,
-    kTrackingImageAndTrajectory,
+    kMinimal,
   };
 
   struct Params {
@@ -142,7 +141,7 @@ public:
 
     if (visualization_profile_ == VisualizationProfile::kFull) {
       // Draw the origin and forward process logs only for the detailed
-      // profile. The tracking-only profile must remain a bounded image stream.
+      // profile. The minimal profile remains a bounded image/trajectory stream.
       this->drawTf(map_, Pose3::Identity(), 0.3, true);
       if (not g_custom_sink) {
         AddGlogCustomSink([this](google::LogSeverity severity,
@@ -263,15 +262,9 @@ public:
   spinOnce(const VIO::VisualizerInput &input) override {
     std::lock_guard<std::mutex> lock(rerun_mutex_);
     this->setTime();
-    if (visualization_profile_ ==
-        VisualizationProfile::kTrackingImageOnly) {
-      drawTrackingImage(input);
-      return std::make_unique<VIO::VisualizerOutput>();
-    }
-
+    drawLcdKeyframeDiversity(input);
     drawOdometryPose(input);
-    if (visualization_profile_ ==
-        VisualizationProfile::kTrackingImageAndTrajectory) {
+    if (visualization_profile_ == VisualizationProfile::kMinimal) {
       drawTrackingImage(input);
       return std::make_unique<VIO::VisualizerOutput>();
     }
@@ -343,11 +336,10 @@ public:
                  input.backend_output_->W_State_Blkf_.pose_, 1.0, false);
     odom_traj_.push_back(input.backend_output_->W_State_Blkf_.pose_);
 
-    // The lightweight trajectory profile sends one cumulative line strip
-    // every 50 keyframes. This keeps the raw VIO path visible without the
-    // full profile's per-frame O(N) trajectory traffic.
-    if (visualization_profile_ ==
-            VisualizationProfile::kTrackingImageAndTrajectory &&
+    // The minimal profile sends one cumulative line strip every 50 keyframes.
+    // This keeps the raw VIO path visible without the full profile's per-frame
+    // O(N) trajectory traffic.
+    if (visualization_profile_ == VisualizationProfile::kMinimal &&
         (odom_traj_.size() == 1u || odom_traj_.size() % 50u == 0u)) {
       this->drawTrajectory(map_ / odom_ / "trajectory", odom_traj_,
                            aria::viz::ColorMap::kGreen, 1.f, false);
@@ -381,6 +373,43 @@ public:
         {cv::IMWRITE_JPEG_QUALITY, tracking_image_jpeg_quality_}));
     this->rec()->log(
         image_path.string(),
+        rerun::EncodedImage::from_bytes(
+            rerun::take_ownership(std::move(jpeg)),
+            rerun::components::MediaType::jpeg()));
+  }
+
+  void drawLcdKeyframeDiversity(const VIO::VisualizerInput &input) {
+    if (!input.lcd_output_ ||
+        !input.lcd_output_->keyframe_diversity_filter_enabled) {
+      return;
+    }
+
+    const std::filesystem::path diversity_path =
+        map_ / odom_ / baselink_ / "lcd" / "keyframe_diversity";
+    this->drawScalar((diversity_path / "score").string(),
+                     input.lcd_output_->keyframe_diversity_score);
+    this->drawScalar((diversity_path / "threshold").string(),
+                     input.lcd_output_->keyframe_diversity_threshold);
+    this->drawScalar(
+        (diversity_path / "admitted").string(),
+        input.lcd_output_->keyframe_admitted_to_sequence ? 1.0 : 0.0);
+
+    const cv::Mat &debug_image =
+        input.lcd_output_->debug_seq_frame.second;
+    if (debug_image.empty()) {
+      return;
+    }
+    if (visualization_profile_ == VisualizationProfile::kFull) {
+      this->drawImage(diversity_path / "image", debug_image, false);
+      return;
+    }
+
+    std::vector<uchar> jpeg;
+    CHECK(cv::imencode(
+        ".jpg", debug_image, jpeg,
+        {cv::IMWRITE_JPEG_QUALITY, tracking_image_jpeg_quality_}));
+    this->rec()->log(
+        (diversity_path / "image").string(),
         rerun::EncodedImage::from_bytes(
             rerun::take_ownership(std::move(jpeg)),
             rerun::components::MediaType::jpeg()));

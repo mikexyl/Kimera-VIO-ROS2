@@ -316,15 +316,12 @@ def generate_launch_description():
     rerun_visualization_profile_arg = DeclareLaunchArgument(
         'rerun_visualization_profile',
         default_value='full',
-        description=(
-            'VIO Rerun payload profile: full, tracking_image_only, or '
-            'tracking_image_and_trajectory.'
-        )
+        description='VIO Rerun payload profile: full or minimal.'
     )
     rerun_tracking_image_jpeg_quality_arg = DeclareLaunchArgument(
         'rerun_tracking_image_jpeg_quality',
         default_value='80',
-        description='JPEG quality for the tracking_image_only Rerun profile.'
+        description='JPEG quality for the minimal Rerun profile.'
     )
     mono_depth_enabled_arg = DeclareLaunchArgument(
         'mono_depth.enabled',

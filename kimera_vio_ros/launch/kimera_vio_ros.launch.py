@@ -120,6 +120,12 @@ def generate_launch_description():
     model_mixvpr_arg = DeclareLaunchArgument(
         'models.mixvpr', default_value=''
     )
+    stereo_depth_method_arg = DeclareLaunchArgument(
+        'stereo_depth.method', default_value=''
+    )
+    model_stereo_depth_arg = DeclareLaunchArgument(
+        'models.stereo_depth', default_value=''
+    )
     params_folder_arg = DeclareLaunchArgument(
         'params_folder',
         default_value=PathJoinSubstitution([
@@ -227,15 +233,12 @@ def generate_launch_description():
     rerun_visualization_profile_arg = DeclareLaunchArgument(
         'rerun_visualization_profile',
         default_value='full',
-        description=(
-            'VIO Rerun payload profile: full, tracking_image_only, or '
-            'tracking_image_and_trajectory.'
-        )
+        description='VIO Rerun payload profile: full or minimal.'
     )
     rerun_tracking_image_jpeg_quality_arg = DeclareLaunchArgument(
         'rerun_tracking_image_jpeg_quality',
         default_value='80',
-        description='JPEG quality for the tracking_image_only Rerun profile.'
+        description='JPEG quality for the minimal Rerun profile.'
     )
     mono_depth_enabled_arg = DeclareLaunchArgument(
         'mono_depth.enabled',
@@ -421,6 +424,8 @@ def generate_launch_description():
         'models.lightglue_lcd': LaunchConfiguration('models.lightglue_lcd'),
         'models.jist': LaunchConfiguration('models.jist'),
         'models.mixvpr': LaunchConfiguration('models.mixvpr'),
+        'stereo_depth.method': LaunchConfiguration('stereo_depth.method'),
+        'models.stereo_depth': LaunchConfiguration('models.stereo_depth'),
         'frame_id.base_link': LaunchConfiguration('frame_id.base_link'),
         'frame_id.odom': LaunchConfiguration('frame_id.odom'),
         'frame_id.map': LaunchConfiguration('frame_id.map'),
@@ -540,6 +545,8 @@ def generate_launch_description():
         model_lightglue_lcd_arg,
         model_jist_arg,
         model_mixvpr_arg,
+        stereo_depth_method_arg,
+        model_stereo_depth_arg,
         params_folder_arg,
         topic_left_image_arg,
         topic_right_image_arg,
