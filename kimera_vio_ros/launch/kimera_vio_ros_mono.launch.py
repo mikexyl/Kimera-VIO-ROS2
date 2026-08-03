@@ -214,6 +214,9 @@ def generate_launch_description():
     model_mixvpr_arg = DeclareLaunchArgument(
         'models.mixvpr', default_value=''
     )
+    jist_frame_refinement_arg = DeclareLaunchArgument(
+        'jist_frame_refinement', default_value='false'
+    )
     params_folder_arg = DeclareLaunchArgument(
         'params_folder',
         default_value=PathJoinSubstitution([
@@ -548,6 +551,7 @@ def generate_launch_description():
         'models.lightglue_lcd': LaunchConfiguration('models.lightglue_lcd'),
         'models.jist': LaunchConfiguration('models.jist'),
         'models.mixvpr': LaunchConfiguration('models.mixvpr'),
+        'jist_frame_refinement': LaunchConfiguration('jist_frame_refinement'),
         'frame_id.base_link': LaunchConfiguration('frame_id.base_link'),
         'frame_id.odom': LaunchConfiguration('frame_id.odom'),
         'frame_id.map': LaunchConfiguration('frame_id.map'),
@@ -682,6 +686,7 @@ def generate_launch_description():
         model_lightglue_lcd_arg,
         model_jist_arg,
         model_mixvpr_arg,
+        jist_frame_refinement_arg,
         params_folder_arg,
         topic_image_arg,
         topic_imu_data_arg,

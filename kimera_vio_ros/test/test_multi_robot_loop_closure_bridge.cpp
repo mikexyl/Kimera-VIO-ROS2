@@ -13,6 +13,8 @@ namespace {
 
 using namespace std::chrono_literals;
 using BowQueries = pose_graph_tools_msgs::msg::BowQueries;
+using JistRefinementBundles =
+    pose_graph_tools_msgs::msg::JistRefinementBundles;
 using PoseGraph = pose_graph_tools_msgs::msg::PoseGraph;
 using VLCFrames = pose_graph_tools_msgs::msg::VLCFrames;
 
@@ -41,6 +43,20 @@ VIO::LcdOutput::Ptr makeOutput(VIO::FrameId frame_id,
         gtsam::noiseModel::Isotropic::Variance(6, 0.01)));
   }
   return output;
+}
+
+VIO::LcdVerificationFrame makeVerificationFrame(VIO::FrameId frame_id) {
+  const auto output = makeOutput(frame_id);
+  VIO::LcdVerificationFrame frame;
+  frame.frame_id = frame_id;
+  frame.timestamp = output->timestamp_kf_;
+  frame.keypoints_2d = output->keypoints_2d_;
+  frame.keypoints_3d = output->keypoints_3d_;
+  frame.versors = output->versors_;
+  frame.landmark_ids = output->landmark_ids_;
+  frame.descriptors_mat = output->descriptors_mat_.clone();
+  frame.T_base_cam = output->T_base_cam_;
+  return frame;
 }
 
 rclcpp::NodeOptions enabledOptions(int descriptor_batch = 1,
@@ -242,6 +258,67 @@ TEST_F(MultiRobotBridgeTest, FlushesPartialBatchesOnTimer) {
     executor.spin_some();
   }
   EXPECT_EQ(descriptor_count, 1u);
+}
+
+TEST_F(MultiRobotBridgeTest,
+       PublishesFp32RefinementMatrixAndServesSelectedFrames) {
+  auto observer = std::make_shared<rclcpp::Node>("observer_refinement");
+  JistRefinementBundles received;
+  auto refinement_sub = observer->create_subscription<JistRefinementBundles>(
+      "/alpha/kimera_vio/descriptors/jist_refinement",
+      rclcpp::QoS(10).reliable().transient_local(),
+      [&](const JistRefinementBundles::SharedPtr msg) { received = *msg; });
+  auto node = std::make_shared<rclcpp::Node>(
+      "bridge_refinement", "/alpha/kimera_vio", enabledOptions());
+  MultiRobotLoopClosureBridge bridge(node);
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(observer);
+  executor.add_node(node);
+
+  auto output = makeOutput(30);
+  VIO::JistRefinementBundle bundle;
+  bundle.sequence_endpoint_id = 30;
+  bundle.frame_ids = {26, 26, 28, 29, 30};
+  bundle.frame_descriptors = cv::Mat::zeros(5, 512, CV_32FC1);
+  for (int row = 0; row < bundle.frame_descriptors.rows; ++row) {
+    bundle.frame_descriptors.at<float>(row, row) = 1.0f;
+  }
+  for (const VIO::FrameId selected_id : {26, 28, 29, 30}) {
+    bundle.verification_frames.push_back(
+        makeVerificationFrame(selected_id));
+  }
+  output->jist_refinement_bundle = std::move(bundle);
+  bridge.publishLcdOutput(output);
+
+  ASSERT_TRUE(spinUntil(executor, [&]() {
+    return received.bundles.size() == 1u;
+  }));
+  const auto& message = received.bundles.front();
+  EXPECT_EQ(message.robot_id, 2u);
+  EXPECT_EQ(message.sequence_pose_id, 30u);
+  EXPECT_EQ(message.frame_ids,
+            (std::vector<uint32_t>{26, 26, 28, 29, 30}));
+  ASSERT_EQ(message.descriptor_dim, 512u);
+  ASSERT_EQ(message.frame_descriptors.size(), 5u * 512u);
+  for (size_t row = 0; row < 5u; ++row) {
+    EXPECT_FLOAT_EQ(message.frame_descriptors[row * 512u + row], 1.0f);
+  }
+
+  auto client = observer->create_client<
+      pose_graph_tools_msgs::srv::VLCFrameQuery>(
+      "/alpha/kimera_vio/frames/verification/get");
+  ASSERT_TRUE(client->wait_for_service(1s));
+  auto request =
+      std::make_shared<pose_graph_tools_msgs::srv::VLCFrameQuery::Request>();
+  request->robot_id = 2;
+  request->pose_ids = {26, 28};
+  auto future = client->async_send_request(request);
+  ASSERT_EQ(executor.spin_until_future_complete(future, 1s),
+            rclcpp::FutureReturnCode::SUCCESS);
+  const auto response = future.get();
+  ASSERT_EQ(response->frames.size(), 2u);
+  EXPECT_EQ(response->frames[0].pose_id, 26u);
+  EXPECT_EQ(response->frames[1].pose_id, 28u);
 }
 
 TEST_F(MultiRobotBridgeTest, SkipsNonSequenceOutputs) {

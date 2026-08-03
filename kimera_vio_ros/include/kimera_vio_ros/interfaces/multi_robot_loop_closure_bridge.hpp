@@ -17,6 +17,7 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <kimera-vio/loopclosure/LcdOutputPacket.h>
 #include <pose_graph_tools_msgs/msg/bow_queries.hpp>
+#include <pose_graph_tools_msgs/msg/jist_refinement_bundles.hpp>
 #include <pose_graph_tools_msgs/msg/pose_graph.hpp>
 #include <pose_graph_tools_msgs/msg/vlc_frames.hpp>
 #include <pose_graph_tools_msgs/srv/pose_graph_query.hpp>
@@ -37,6 +38,8 @@ class MultiRobotLoopClosureBridge {
  private:
   using BowQueriesMsg = pose_graph_tools_msgs::msg::BowQueries;
   using PoseGraphMsg = pose_graph_tools_msgs::msg::PoseGraph;
+  using JistRefinementBundlesMsg =
+      pose_graph_tools_msgs::msg::JistRefinementBundles;
   using PoseGraphEdgeMsg = pose_graph_tools_msgs::msg::PoseGraphEdge;
   using PoseGraphNodeMsg = pose_graph_tools_msgs::msg::PoseGraphNode;
   using VLCFrameMsg = pose_graph_tools_msgs::msg::VLCFrameMsg;
@@ -56,6 +59,7 @@ class MultiRobotLoopClosureBridge {
     gtsam::Pose3 T_base_cam;
 
     explicit CachedFrame(const VIO::LcdOutput& output);
+    explicit CachedFrame(const VIO::LcdVerificationFrame& frame);
   };
 
   void updatePoseGraph(const VIO::LcdOutput& output,
@@ -87,6 +91,7 @@ class MultiRobotLoopClosureBridge {
 
   rclcpp::Publisher<PoseGraphMsg>::SharedPtr pose_graph_pub_;
   rclcpp::Publisher<BowQueriesMsg>::SharedPtr descriptor_pub_;
+  rclcpp::Publisher<JistRefinementBundlesMsg>::SharedPtr refinement_pub_;
   rclcpp::Publisher<VLCFramesMsg>::SharedPtr frame_pub_;
   rclcpp::Service<PoseGraphQuerySrv>::SharedPtr pose_graph_service_;
   rclcpp::Service<VLCFrameQuerySrv>::SharedPtr frame_service_;

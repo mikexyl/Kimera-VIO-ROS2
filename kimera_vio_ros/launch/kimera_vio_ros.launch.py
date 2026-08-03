@@ -120,6 +120,9 @@ def generate_launch_description():
     model_mixvpr_arg = DeclareLaunchArgument(
         'models.mixvpr', default_value=''
     )
+    jist_frame_refinement_arg = DeclareLaunchArgument(
+        'jist_frame_refinement', default_value='false'
+    )
     stereo_depth_method_arg = DeclareLaunchArgument(
         'stereo_depth.method', default_value=''
     )
@@ -424,6 +427,7 @@ def generate_launch_description():
         'models.lightglue_lcd': LaunchConfiguration('models.lightglue_lcd'),
         'models.jist': LaunchConfiguration('models.jist'),
         'models.mixvpr': LaunchConfiguration('models.mixvpr'),
+        'jist_frame_refinement': LaunchConfiguration('jist_frame_refinement'),
         'stereo_depth.method': LaunchConfiguration('stereo_depth.method'),
         'models.stereo_depth': LaunchConfiguration('models.stereo_depth'),
         'frame_id.base_link': LaunchConfiguration('frame_id.base_link'),
@@ -545,6 +549,7 @@ def generate_launch_description():
         model_lightglue_lcd_arg,
         model_jist_arg,
         model_mixvpr_arg,
+        jist_frame_refinement_arg,
         stereo_depth_method_arg,
         model_stereo_depth_arg,
         params_folder_arg,

@@ -94,6 +94,13 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
         << mixvpr_model_path;
     vio_params_->lcd_params_.vpr_model_path_ = mixvpr_model_path;
   }
+  vio_params_->lcd_params_.jist_frame_refinement_ =
+      node_->declare_parameter<bool>(
+          "jist_frame_refinement",
+          vio_params_->lcd_params_.jist_frame_refinement_);
+  CHECK(!vio_params_->lcd_params_.jist_frame_refinement_ ||
+        vio_params_->lcd_params_.vpr_model_type_ == VIO::VprModelType::kJist)
+      << "jist_frame_refinement requires the JIST VPR model";
   auto &dense_stereo_params =
       vio_params_->frontend_params_.stereo_matching_params_.dense_stereo_params_;
   const auto stereo_depth_method =

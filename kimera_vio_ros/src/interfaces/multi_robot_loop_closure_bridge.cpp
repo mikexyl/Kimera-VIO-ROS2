@@ -100,6 +100,14 @@ MultiRobotLoopClosureBridge::CachedFrame::CachedFrame(
       descriptors_mat(output.descriptors_mat_.clone()),
       T_base_cam(output.T_base_cam_) {}
 
+MultiRobotLoopClosureBridge::CachedFrame::CachedFrame(
+    const VIO::LcdVerificationFrame &frame)
+    : timestamp_ns(frame.timestamp), keypoints_2d(frame.keypoints_2d),
+      keypoints_3d(frame.keypoints_3d), versors(frame.versors),
+      landmark_ids(frame.landmark_ids),
+      descriptors_mat(frame.descriptors_mat.clone()),
+      T_base_cam(frame.T_base_cam) {}
+
 MultiRobotLoopClosureBridge::MultiRobotLoopClosureBridge(
     const rclcpp::Node::SharedPtr &node)
     : node_(node) {
@@ -137,6 +145,8 @@ MultiRobotLoopClosureBridge::MultiRobotLoopClosureBridge(
                                                           reliableQos(1000));
   descriptor_pub_ = node_->create_publisher<BowQueriesMsg>(
       "descriptors/global", reliableTransientQos(100));
+  refinement_pub_ = node_->create_publisher<JistRefinementBundlesMsg>(
+      "descriptors/jist_refinement", reliableTransientQos(1000));
   frame_pub_ = node_->create_publisher<VLCFramesMsg>("frames/verification",
                                                      reliableQos(100));
   pose_graph_service_ = node_->create_service<PoseGraphQuerySrv>(
@@ -176,6 +186,45 @@ void MultiRobotLoopClosureBridge::publishLcdOutput(
   std::lock_guard<std::mutex> lock(mutex_);
   const VIO::FrameId frame_id = output->keyframe_id_;
   frames_.insert_or_assign(frame_id, CachedFrame(*output));
+
+  if (output->jist_refinement_bundle) {
+    const auto &bundle = *output->jist_refinement_bundle;
+    if (bundle.sequence_endpoint_id != frame_id ||
+        bundle.frame_ids.size() != 5u ||
+        bundle.frame_descriptors.rows != 5 ||
+        bundle.frame_descriptors.cols != 512 ||
+        bundle.frame_descriptors.type() != CV_32FC1) {
+      throw std::runtime_error(
+          "Malformed JIST refinement bundle in VIO output");
+    }
+    for (const auto &verification : bundle.verification_frames) {
+      if (verification.frame_id == frame_id) {
+        continue;
+      }
+      frames_.insert_or_assign(verification.frame_id,
+                               CachedFrame(verification));
+    }
+
+    JistRefinementBundlesMsg message;
+    message.header.stamp = rclcpp::Time(output->timestamp_kf_);
+    message.destination_robot_id = robot_id_;
+    auto &bundle_message = message.bundles.emplace_back();
+    bundle_message.header = message.header;
+    bundle_message.robot_id = robot_id_;
+    bundle_message.sequence_pose_id =
+        static_cast<uint32_t>(bundle.sequence_endpoint_id);
+    bundle_message.descriptor_dim =
+        static_cast<uint32_t>(bundle.frame_descriptors.cols);
+    bundle_message.frame_ids.reserve(bundle.frame_ids.size());
+    for (const auto selected_id : bundle.frame_ids) {
+      bundle_message.frame_ids.push_back(static_cast<uint32_t>(selected_id));
+    }
+    const size_t descriptor_count = bundle.frame_descriptors.total();
+    const float *descriptor_data = bundle.frame_descriptors.ptr<float>();
+    bundle_message.frame_descriptors.assign(
+        descriptor_data, descriptor_data + descriptor_count);
+    refinement_pub_->publish(message);
+  }
   const CachedFrame &frame = frames_.at(frame_id);
   queueDescriptor(frame_id, frame);
   if (publish_verification_frames_ && !frame.bow_vec.empty()) {
