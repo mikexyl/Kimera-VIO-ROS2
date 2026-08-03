@@ -123,6 +123,9 @@ def generate_launch_description():
     jist_frame_refinement_arg = DeclareLaunchArgument(
         'jist_frame_refinement', default_value='false'
     )
+    min_sim_score_arg = DeclareLaunchArgument(
+        'loop_closure.min_sim_score', default_value='-1.0'
+    )
     stereo_depth_method_arg = DeclareLaunchArgument(
         'stereo_depth.method', default_value=''
     )
@@ -428,6 +431,9 @@ def generate_launch_description():
         'models.jist': LaunchConfiguration('models.jist'),
         'models.mixvpr': LaunchConfiguration('models.mixvpr'),
         'jist_frame_refinement': LaunchConfiguration('jist_frame_refinement'),
+        'loop_closure.min_sim_score': LaunchConfiguration(
+            'loop_closure.min_sim_score'
+        ),
         'stereo_depth.method': LaunchConfiguration('stereo_depth.method'),
         'models.stereo_depth': LaunchConfiguration('models.stereo_depth'),
         'frame_id.base_link': LaunchConfiguration('frame_id.base_link'),
@@ -550,6 +556,7 @@ def generate_launch_description():
         model_jist_arg,
         model_mixvpr_arg,
         jist_frame_refinement_arg,
+        min_sim_score_arg,
         stereo_depth_method_arg,
         model_stereo_depth_arg,
         params_folder_arg,

@@ -81,6 +81,7 @@ max_lmk_reproj_error: 3
 vpr_model_type: jist
 vpr_model_path: ""
 vpr_seq_interval: 1
+vpr_min_sequence_frames: 5
 vpr_max_sequence_distance_m: 10
 vpr_short_sequence_policy: wait
 

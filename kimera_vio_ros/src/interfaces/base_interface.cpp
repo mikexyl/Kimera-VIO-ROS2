@@ -98,6 +98,14 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       node_->declare_parameter<bool>(
           "jist_frame_refinement",
           vio_params_->lcd_params_.jist_frame_refinement_);
+  const auto min_sim_score_override = node_->declare_parameter<double>(
+      "loop_closure.min_sim_score", -1.0);
+  CHECK_LE(min_sim_score_override, 1.0)
+      << "loop_closure.min_sim_score must be in [0, 1], or negative to use "
+         "the YAML profile value";
+  if (min_sim_score_override >= 0.0) {
+    vio_params_->lcd_params_.min_sim_score_ = min_sim_score_override;
+  }
   CHECK(!vio_params_->lcd_params_.jist_frame_refinement_ ||
         vio_params_->lcd_params_.vpr_model_type_ == VIO::VprModelType::kJist)
       << "jist_frame_refinement requires the JIST VPR model";
