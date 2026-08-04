@@ -158,8 +158,8 @@ medianBlurDisparity: 0
 
 # Deep learning stereo parameters (for stereo profiles only)
 # Uncomment and adjust for deep learning methods:
-# stereoDepthMethod: LightStereo
-# enginePath: /workspaces/src/xfeat-cpp/onnx_model/LightStereo-S-KITTI_480x640.engine
+# stereoDepthMethod: FastFoundationStereo
+# enginePath: /workspaces/src/xfeat-cpp/onnx_model/fast_foundation_stereo/fast_foundationstereo.engine
 # dispWidth: 640
 # dispHeight: 480
 

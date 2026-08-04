@@ -121,10 +121,8 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       node_->declare_parameter<std::string>("models.stereo_depth", "");
   if (!stereo_depth_model.empty()) {
     CHECK(dense_stereo_params.stereo_depth_method_ ==
-              VIO::StereoDepthMethod::LIGHTSTEREO ||
-          dense_stereo_params.stereo_depth_method_ ==
-              VIO::StereoDepthMethod::FAST_FOUNDATION_STEREO)
-        << "models.stereo_depth is only valid for a TensorRT stereo method";
+          VIO::StereoDepthMethod::FAST_FOUNDATION_STEREO)
+        << "models.stereo_depth is only valid for FastFoundationStereo";
     CHECK(std::filesystem::is_regular_file(stereo_depth_model))
         << "Model parameter 'models.stereo_depth' does not point to a "
            "readable file: "
@@ -136,9 +134,7 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
     dense_stereo_params.engine_path_ = stereo_depth_model;
   }
   if (dense_stereo_params.stereo_depth_method_ ==
-          VIO::StereoDepthMethod::LIGHTSTEREO ||
-      dense_stereo_params.stereo_depth_method_ ==
-          VIO::StereoDepthMethod::FAST_FOUNDATION_STEREO) {
+      VIO::StereoDepthMethod::FAST_FOUNDATION_STEREO) {
     CHECK(std::filesystem::is_regular_file(dense_stereo_params.engine_path_))
         << VIO::stereoDepthMethodToString(
                dense_stereo_params.stereo_depth_method_)
