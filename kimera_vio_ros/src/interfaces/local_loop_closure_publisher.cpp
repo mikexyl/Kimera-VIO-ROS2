@@ -129,6 +129,9 @@ void LocalLoopClosurePublisher::publishPoseGraph(
     edge.type = edge.key_to == edge.key_from + 1
                     ? pose_graph_tools_msgs::msg::PoseGraphEdge::ODOM
                     : pose_graph_tools_msgs::msg::PoseGraphEdge::LOOPCLOSE;
+    edge.has_scale = false;
+    edge.scale = 1.0;
+    edge.scale_sigma = -1.0;
     poseToMsg(factor->measured(), &edge.pose);
     const gtsam::Matrix covariance = factorCovariance(factor->noiseModel());
     edge.covariance.fill(0.0);

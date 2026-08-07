@@ -9,6 +9,7 @@
 #include <kimera-vio/loopclosure/LoopClosureDetector.h>
 #include <kimera-vio/factors/CameraAwareBaselineRatioFactor.h>
 #include <kimera-vio/factors/CameraAwareEssentialMatrixFactor.h>
+#include <kimera-vio/frontend/StereoVisionImuFrontend-definitions.h>
 #include <kimera-vio/visualizer/Visualizer3D.h>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -282,6 +283,8 @@ public:
 
     drawTrackingImage(input);
 
+    drawStereoDepthImage(input);
+
     drawMonoDepthConfidence(input);
 
     Landmarks lmks_vec;
@@ -378,6 +381,42 @@ public:
             rerun::components::MediaType::jpeg()));
   }
 
+  void drawStereoDepthImage(const VIO::VisualizerInput &input) {
+    if (visualization_profile_ != VisualizationProfile::kFull) {
+      return;
+    }
+
+    const auto *stereo_output =
+        dynamic_cast<const StereoFrontendOutput *>(input.frontend_output_.get());
+    if (stereo_output == nullptr) {
+      return;
+    }
+
+    const cv::Mat &depth = stereo_output->stereo_frame_lkf_.left_depth_img_;
+    if (depth.empty()) {
+      return;
+    }
+    CHECK_EQ(depth.type(), CV_32FC1);
+
+    // Keep the depth entity below the calibrated camera entity. Rerun uses
+    // this hierarchy to find the pinhole model and back-project DepthImage in
+    // the 3D view.
+    const std::filesystem::path depth_path =
+        map_ / odom_ / baselink_ / "camera" / "depth";
+    // left_depth_img_ is the exact post-filter CV_32F depth matrix consumed by
+    // the VIO frontend. Log it directly: no range mask, clipping, colormap
+    // conversion, or resizing is applied here. Preserve non-positive and
+    // non-finite values exactly so the Rerun view reflects frontend input.
+    const cv::Mat depth_for_log = depth.isContinuous() ? depth : depth.clone();
+    this->rec()->log(
+        (depth_path / "post_filter_exact").string(),
+        rerun::DepthImage(
+            depth_for_log.ptr<float>(),
+            {static_cast<uint32_t>(depth_for_log.cols),
+             static_cast<uint32_t>(depth_for_log.rows)})
+            .with_meter(1.0));
+  }
+
   void drawLcdKeyframeDiversity(const VIO::VisualizerInput &input) {
     if (!input.lcd_output_ ||
         !input.lcd_output_->keyframe_diversity_filter_enabled) {
@@ -421,7 +460,11 @@ public:
       return;
     }
 
-    const gtsam::Pose3 &body_T_cam = frame->cam_param_.body_Pose_cam_;
+    const gtsam::Pose3 *frontend_body_T_cam =
+        input.frontend_output_->getBodyPoseCam();
+    const gtsam::Pose3 &body_T_cam = frontend_body_T_cam != nullptr
+                                         ? *frontend_body_T_cam
+                                         : frame->cam_param_.body_Pose_cam_;
     const gtsam::Pose3 odom_T_body = input.backend_output_->W_State_Blkf_.pose_;
     const gtsam::Pose3 odom_T_cam = odom_T_body.compose(body_T_cam);
     const std::filesystem::path camera_path =
@@ -432,22 +475,38 @@ public:
     this->drawTrajectory(map_ / odom_ / "camera_trajectory", camera_traj_,
                          aria::viz::ColorMap::kLightBlue, 0.5f, false);
 
-    const cv::Mat &K = frame->cam_param_.K_;
-    std::array<float, 9> K_vec = {static_cast<float>(K.at<double>(0, 0)), // fx
-                                  0.f,
-                                  0.f,
-                                  0.f,
-                                  static_cast<float>(K.at<double>(1, 1)), // fy
-                                  0.f,
-                                  static_cast<float>(K.at<double>(0, 2)), // cx
-                                  static_cast<float>(K.at<double>(1, 2)), // cy
-                                  1.f};
+    const cv::Mat *K = &frame->cam_param_.K_;
+    int image_cols = frame->img_.cols;
+    int image_rows = frame->img_.rows;
+    const auto *stereo_output =
+        dynamic_cast<const StereoFrontendOutput *>(input.frontend_output_.get());
+    if (stereo_output != nullptr &&
+        !stereo_output->stereo_frame_lkf_.left_rectified_camera_matrix_.empty()) {
+      K = &stereo_output->stereo_frame_lkf_.left_rectified_camera_matrix_;
+      const cv::Mat &left_rectified =
+          stereo_output->stereo_frame_lkf_.getLeftImgRectified();
+      image_cols = left_rectified.cols;
+      image_rows = left_rectified.rows;
+    }
+    CHECK_EQ(K->type(), CV_64FC1);
+    CHECK_EQ(K->rows, 3);
+    CHECK_EQ(K->cols, 3);
+    std::array<float, 9> K_vec = {
+        static_cast<float>(K->at<double>(0, 0)),  // fx
+        0.f,
+        0.f,
+        0.f,
+        static_cast<float>(K->at<double>(1, 1)),  // fy
+        0.f,
+        static_cast<float>(K->at<double>(0, 2)),  // cx
+        static_cast<float>(K->at<double>(1, 2)),  // cy
+        1.f};
     rerun::components::PinholeProjection image_from_camera(K_vec);
 
     this->rec()->log_with_static(
         camera_path.c_str(), false,
         rerun::Pinhole(image_from_camera)
-            .with_resolution(frame->img_.cols, frame->img_.rows)
+            .with_resolution(image_cols, image_rows)
             .with_image_plane_distance(0.3f)
             .with_camera_xyz(rerun::components::ViewCoordinates::RDF));
   }

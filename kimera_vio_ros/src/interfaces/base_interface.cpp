@@ -61,45 +61,44 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       *target = value;
     }
   };
-  override_path("models.xfeat",
-                &vio_params_->frontend_params_.feature_detector_params_.xfeat_path_);
-  override_path("models.lightglue_frontend",
-                &vio_params_->frontend_params_.tracker_params_.lighterglue_model_path_);
-  override_path("models.lightglue_lcd", &vio_params_->lcd_params_.lcd_lg_model_path_);
+  override_path(
+      "models.xfeat",
+      &vio_params_->frontend_params_.feature_detector_params_.xfeat_path_);
+  override_path(
+      "models.lightglue_frontend",
+      &vio_params_->frontend_params_.tracker_params_.lighterglue_model_path_);
+  override_path("models.lightglue_lcd",
+                &vio_params_->lcd_params_.lcd_lg_model_path_);
+  // VPR model parameters are an artifact catalog. The loaded LCD YAML profile
+  // owns the algorithm choice; only its selected artifact is validated and
+  // applied. This lets deployment launch files provide paths for every
+  // available backend without implicitly changing the experiment profile.
   const auto jist_model_path =
       node_->declare_parameter<std::string>("models.jist", "");
-  if (!jist_model_path.empty()) {
-    CHECK(vio_params_->lcd_params_.vpr_model_type_ ==
-          VIO::VprModelType::kJist)
-        << "models.jist was supplied for a non-JIST VPR profile";
-    CHECK(std::filesystem::is_regular_file(jist_model_path))
-        << "Model parameter 'models.jist' does not point to a readable file: "
-        << jist_model_path;
-    CHECK_EQ(std::filesystem::path(jist_model_path).extension(), ".engine")
-        << "Model parameter 'models.jist' requires a TensorRT .engine file: "
-        << jist_model_path;
-    vio_params_->lcd_params_.vpr_model_path_ = jist_model_path;
-  }
   const auto mixvpr_model_path =
       node_->declare_parameter<std::string>("models.mixvpr", "");
-  if (!mixvpr_model_path.empty()) {
-    CHECK(vio_params_->lcd_params_.vpr_model_type_ ==
-          VIO::VprModelType::kMixVPR)
-        << "models.mixvpr was supplied for a non-MixVPR VPR profile";
-    CHECK(std::filesystem::is_regular_file(mixvpr_model_path))
-        << "Model parameter 'models.mixvpr' does not point to a readable file: "
-        << mixvpr_model_path;
-    CHECK_EQ(std::filesystem::path(mixvpr_model_path).extension(), ".engine")
-        << "Model parameter 'models.mixvpr' requires a TensorRT .engine file: "
-        << mixvpr_model_path;
-    vio_params_->lcd_params_.vpr_model_path_ = mixvpr_model_path;
+  const bool use_jist =
+      vio_params_->lcd_params_.vpr_model_type_ == VIO::VprModelType::kJist;
+  const std::string selected_vpr_parameter =
+      use_jist ? "models.jist" : "models.mixvpr";
+  const std::string &selected_vpr_model_path =
+      use_jist ? jist_model_path : mixvpr_model_path;
+  if (!selected_vpr_model_path.empty()) {
+    CHECK(std::filesystem::is_regular_file(selected_vpr_model_path))
+        << "Selected VPR model parameter '" << selected_vpr_parameter
+        << "' does not point to a readable file: " << selected_vpr_model_path;
+    CHECK_EQ(std::filesystem::path(selected_vpr_model_path).extension(),
+             ".engine")
+        << "Selected VPR model parameter '" << selected_vpr_parameter
+        << "' requires a TensorRT .engine file: " << selected_vpr_model_path;
+    vio_params_->lcd_params_.vpr_model_path_ = selected_vpr_model_path;
   }
   vio_params_->lcd_params_.jist_frame_refinement_ =
       node_->declare_parameter<bool>(
           "jist_frame_refinement",
           vio_params_->lcd_params_.jist_frame_refinement_);
-  const auto min_sim_score_override = node_->declare_parameter<double>(
-      "loop_closure.min_sim_score", -1.0);
+  const auto min_sim_score_override =
+      node_->declare_parameter<double>("loop_closure.min_sim_score", -1.0);
   CHECK_LE(min_sim_score_override, 1.0)
       << "loop_closure.min_sim_score must be in [0, 1], or negative to use "
          "the YAML profile value";
@@ -109,8 +108,8 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
   CHECK(!vio_params_->lcd_params_.jist_frame_refinement_ ||
         vio_params_->lcd_params_.vpr_model_type_ == VIO::VprModelType::kJist)
       << "jist_frame_refinement requires the JIST VPR model";
-  auto &dense_stereo_params =
-      vio_params_->frontend_params_.stereo_matching_params_.dense_stereo_params_;
+  auto &dense_stereo_params = vio_params_->frontend_params_
+                                  .stereo_matching_params_.dense_stereo_params_;
   const auto stereo_depth_method =
       node_->declare_parameter<std::string>("stereo_depth.method", "");
   if (!stereo_depth_method.empty()) {
@@ -140,8 +139,9 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
                dense_stereo_params.stereo_depth_method_)
         << " requires a readable TensorRT engine: "
         << dense_stereo_params.engine_path_;
-    CHECK_EQ(std::filesystem::path(dense_stereo_params.engine_path_).extension(),
-             ".engine");
+    CHECK_EQ(
+        std::filesystem::path(dense_stereo_params.engine_path_).extension(),
+        ".engine");
   }
   // Determine if this is a mono or stereo setup based on number of cameras
   bool is_mono = vio_params_->frontend_type_ == VIO::FrontendType::kMonoImu;
@@ -160,7 +160,7 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       "rerun_host", "rerun+http://127.0.0.1:9876/proxy");
   const auto rerun_visualization_profile_name =
       node_->declare_parameter<std::string>("rerun_visualization_profile",
-                                           "full");
+                                            "full");
   VIO::RerunVisualizer::VisualizationProfile rerun_visualization_profile =
       VIO::RerunVisualizer::VisualizationProfile::kFull;
   if (rerun_visualization_profile_name == "full") {
@@ -250,19 +250,18 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
       mono_depth_params.mode, mono_depth_params.scale_alignment_method);
   VIO::Visualizer3D::UniquePtr rerun_visualizer;
   if (use_rerun_visualizer) {
-    rerun_visualizer = std::make_unique<VIO::RerunVisualizer>(
-        VIO::RerunVisualizer::Params{.application_id = rerun_application_id,
-                                     .base_link_frame_id = base_link_frame_id_,
-                                     .odom_frame_id = odom_frame_id_,
-                                     .map_frame_id = map_frame_id_,
-                                     .recording_id = rerun_recording_id,
-                                     .result_dir = rerun_result_dir,
-                                     .rerun_host = rerun_host,
-                                     .visualization_profile =
-                                         rerun_visualization_profile,
-                                     .tracking_image_jpeg_quality =
-                                         static_cast<int>(
-                                             rerun_tracking_image_jpeg_quality)});
+    rerun_visualizer =
+        std::make_unique<VIO::RerunVisualizer>(VIO::RerunVisualizer::Params{
+            .application_id = rerun_application_id,
+            .base_link_frame_id = base_link_frame_id_,
+            .odom_frame_id = odom_frame_id_,
+            .map_frame_id = map_frame_id_,
+            .recording_id = rerun_recording_id,
+            .result_dir = rerun_result_dir,
+            .rerun_host = rerun_host,
+            .visualization_profile = rerun_visualization_profile,
+            .tracking_image_jpeg_quality =
+                static_cast<int>(rerun_tracking_image_jpeg_quality)});
   }
 
   vio_pipeline_.reset();
@@ -283,8 +282,7 @@ BaseInterface::BaseInterface(rclcpp::Node::SharedPtr &node)
         << "The configured VPR model does not point to a readable file: "
         << vio_params_->lcd_params_.vpr_model_path_;
     local_lcd_publisher_ = std::make_unique<LocalLoopClosurePublisher>(node_);
-    multi_robot_bridge_ =
-        std::make_unique<MultiRobotLoopClosureBridge>(node_);
+    multi_robot_bridge_ = std::make_unique<MultiRobotLoopClosureBridge>(node_);
     vio_pipeline_->registerLcdOutputCallback(
         [this](const VIO::LcdOutput::Ptr &msg) {
           CHECK_NOTNULL(local_lcd_publisher_.get())->publishLcdOutput(msg);
@@ -332,10 +330,9 @@ void BaseInterface::externalOdometryCallback(
 
   const auto &message_pose = odometry->pose.pose;
   const gtsam::Pose3 world_pose_body(
-      gtsam::Rot3::Quaternion(message_pose.orientation.w,
-                              message_pose.orientation.x,
-                              message_pose.orientation.y,
-                              message_pose.orientation.z),
+      gtsam::Rot3::Quaternion(
+          message_pose.orientation.w, message_pose.orientation.x,
+          message_pose.orientation.y, message_pose.orientation.z),
       gtsam::Point3(message_pose.position.x, message_pose.position.y,
                     message_pose.position.z));
 
@@ -343,7 +340,7 @@ void BaseInterface::externalOdometryCallback(
   // NavState expects it in the world frame.
   const auto &linear_velocity = odometry->twist.twist.linear;
   const gtsam::Vector3 body_velocity(linear_velocity.x, linear_velocity.y,
-                                    linear_velocity.z);
+                                     linear_velocity.z);
   const gtsam::Vector3 world_velocity =
       world_pose_body.rotation() * body_velocity;
 

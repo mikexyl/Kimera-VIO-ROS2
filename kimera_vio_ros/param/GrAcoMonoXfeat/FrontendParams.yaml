@@ -116,7 +116,7 @@ desc_tracking_mode: 2
 
 # Optical-flow implementation and image scaling.
 optical_flow_type: 0  # 0 = VILIB (GPU), 1 = OpenCV (CPU)
-optical_flow_downsample: 0
+optical_flow_downsample: 1
 optical_flow_downsample_scale: 0.5
 
 # OpenCV optical-flow fallback parameters (unused while optical_flow_type=0).

@@ -79,7 +79,8 @@ bool samePose(const geometry_msgs::msg::Pose &lhs,
 
 bool sameFactor(const pose_graph_tools_msgs::msg::PoseGraphEdge &lhs,
                 const pose_graph_tools_msgs::msg::PoseGraphEdge &rhs) {
-  if (!samePose(lhs.pose, rhs.pose)) {
+  if (!samePose(lhs.pose, rhs.pose) || lhs.has_scale != rhs.has_scale ||
+      lhs.scale != rhs.scale || lhs.scale_sigma != rhs.scale_sigma) {
     return false;
   }
   for (size_t i = 0; i < lhs.covariance.size(); ++i) {
@@ -281,6 +282,9 @@ void MultiRobotLoopClosureBridge::updatePoseGraph(const VIO::LcdOutput &output,
     edge.robot_to = robot_id_;
     edge.type = edge.key_to == edge.key_from + 1 ? PoseGraphEdgeMsg::ODOM
                                                  : PoseGraphEdgeMsg::LOOPCLOSE;
+    edge.has_scale = false;
+    edge.scale = 1.0;
+    edge.scale_sigma = -1.0;
     edge.header.frame_id = map_frame_id_;
     edge.header.stamp = rclcpp::Time(output.timestamp_);
     poseToMsg(factor->measured(), &edge.pose);
